@@ -3,11 +3,13 @@
 import Image from "next/image";
 import { MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CafeSection() {
   const cafes = [
     {
       name: "SATUPERLIMA",
+      slug: "satuperlima",
       address:
         "Jl. Depok, Kembangsari, Kec. Semarang Tengah, Kota Semarang, Jawa Tengah 50133",
       images: [
@@ -19,6 +21,7 @@ export default function CafeSection() {
     },
     {
       name: "RENJANA",
+      slug: "renjana",
       address:
         "Jl. Depok, Kembangsari, Kec. Semarang Tengah, Kota Semarang Tengah, Kota Semarang, Jawa Tengah, 50133",
       images: [
@@ -30,6 +33,7 @@ export default function CafeSection() {
     },
     {
       name: "TERIKAT",
+      slug: "terikat",
       address:
         "Jl. Depok, Kembangsari, Kec. Semarang Tengah, Kota Semarang Tengah, Kota Semarang, Jawa Tengah, 50133",
       images: [
@@ -67,6 +71,8 @@ export default function CafeSection() {
 
 /* ---------- CafeCard ---------- */
 function CafeCard({ cafe }: { cafe: any }) {
+  const router = useRouter();
+
   const [idx, setIdx] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [hoverImage, setHoverImage] = useState(false);
@@ -152,6 +158,7 @@ function CafeCard({ cafe }: { cafe: any }) {
             </p>
 
             <button
+              onClick={() => router.push(`/coffee-shop/${cafe.slug}`)}
               className={`mt-4 bg-white text-[#2b210a] font-semibold px-5 py-2 rounded-full shadow-sm transition-all duration-700 ease-in-out ${
                 hoverImage
                   ? "opacity-100 translate-y-0"
@@ -172,18 +179,14 @@ function CafeCard({ cafe }: { cafe: any }) {
           rel="noopener noreferrer"
           className="group/location relative flex items-center justify-center gap-2 w-full transition-all duration-500"
         >
-          {/* Wrapper untuk transisi background */}
           <div className="absolute inset-0 rounded-xl bg-transparent group-hover/location:bg-[#271F01] transition-all duration-500"></div>
 
-          {/* Icon Lokasi */}
           <MapPin className="w-20 h-20 text-[#4b3b09] z-10 transition-all duration-500 group-hover/location:translate-x-9 group-hover/location:text-white" />
 
-          {/* Alamat normal */}
           <span className="z-10 text-gray-700 text-sm font-medium transition-all duration-500 opacity-100 group-hover/location:opacity-0">
             {cafe.address}
           </span>
 
-          {/* Teks saat hover */}
           <span className="absolute z-10 text-white font-bold text-[16px] opacity-0 group-hover/location:opacity-100 transition-all duration-500 translate-y-2 group-hover/location:translate-y-0">
             Buka di Google Maps
           </span>
