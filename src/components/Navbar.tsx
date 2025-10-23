@@ -12,10 +12,8 @@ export default function Navbar() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pathname = usePathname();
 
-  // ✅ Deteksi halaman coffee-shop
   const isCoffeeShopPage = pathname.startsWith("/coffee-shop");
 
-  // ✅ Scroll hanya aktif di halaman selain coffee-shop
   useEffect(() => {
     if (isCoffeeShopPage) return; // tidak jalankan event scroll di coffee-shop
 
@@ -36,14 +34,14 @@ export default function Navbar() {
     }
   }, [searchOpen]);
 
-  // ✅ Warna dasar navbar
+  // Warna dasar navbar
   const baseStyle = isCoffeeShopPage
     ? "bg-white text-[#2b210a]"
     : isScrolled
     ? "bg-white text-[#2b210a]"
     : "bg-[#2b210a] text-white";
 
-  // ✅ Warna tombol & ikon (disesuaikan)
+  // Warna tombol & ikon (disesuaikan)
   const iconButtonStyle = isCoffeeShopPage
     ? "bg-[#f4f4f4] text-[#2b210a] hover:bg-[#2b210a] hover:text-white"
     : isScrolled
@@ -83,7 +81,7 @@ export default function Navbar() {
                 Coffeeshop
               </a>
               <a href="#" className="hover:text-yellow-600 transition-colors duration-300">
-                Artikel
+                Kategori
               </a>
               <a href="#" className="hover:text-yellow-600 transition-colors duration-300">
                 Tentang Kami
