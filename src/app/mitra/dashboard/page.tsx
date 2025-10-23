@@ -22,7 +22,7 @@ const data = [
 
 export default function MitraDashboard() {
   return (
-    <section className="p-8 grid grid-cols-3 gap-6 text-[#1b1405] bg-[#faf9f7]">
+    <section className="p-8 grid grid-cols-3 gap-6 text-[#1b1405]">
       {/* Cards */}
       {[
         { title: "Total Penjualan Harian", value: "120" },

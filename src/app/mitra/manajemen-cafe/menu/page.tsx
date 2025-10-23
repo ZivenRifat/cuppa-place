@@ -5,7 +5,7 @@ import Navbar from "@/components/mitra/NavbarMitra";
 
 export default function KelolaMenuPage() {
   return (
-    <div className="flex min-h-screen bg-[#f9f8f6] text-[#1b1405]">
+    <div className="flex min-h-screen text-[#1b1405]">
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
         {/* Content */}
