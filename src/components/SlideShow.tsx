@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-export default function Footer() {
+export default function SlideShow() {
   const logos = [
     "/logos/LOGOKAFE-01.png",
     "/logos/LOGOKAFE-02.png",
@@ -22,8 +22,8 @@ export default function Footer() {
             key={idx}
             src={logo}
             alt="logo"
-            width={120}
-            height={70}
+            width={70}
+            height={30}
             className="opacity-90 hover:opacity-100 transition"
           />
         ))}

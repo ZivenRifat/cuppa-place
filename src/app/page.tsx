@@ -2,8 +2,9 @@
 
 import Navbar from "@/components/Navbar"
 import HeroSection from "@/components/HeroSection";
-import Footer from "@/components/Footer";
+import Footer from "@/components/SlideShow";
 import CafeSection from "@/components/CafeSection";
+import SlideShow from "@/components/SlideShow";
 
 export default function HomePage() {
   return (
@@ -11,7 +12,7 @@ export default function HomePage() {
       <Navbar />
       <HeroSection />
       <CafeSection />
-      <Footer />
+      <SlideShow />
     </main>
   );
 }
