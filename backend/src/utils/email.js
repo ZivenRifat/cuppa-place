@@ -2,8 +2,6 @@
 const nodemailer = require('nodemailer');
 
 const FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-
-// ====== Branding (opsional lewat ENV) ======
 const BRAND_NAME   = process.env.EMAIL_BRAND_NAME   || 'CuppaPlace';
 const BRAND_COLOR  = process.env.EMAIL_BRAND_COLOR  || '#2b210a';  // primary (sesuaikan brand-mu)
 const BRAND_ACCENT = process.env.EMAIL_BRAND_ACCENT || '#f5efe2';  // aksen lembut
@@ -11,16 +9,13 @@ const LOGO_URL     = process.env.EMAIL_LOGO_URL     || '';         // https://..
 const APP_URL      = process.env.APP_URL            || '';         // https://... (opsional)
 const SUPPORT_EMAIL= process.env.SUPPORT_EMAIL      || FROM;
 
-// ===================================================
-// Transporter: Gmail (app password) / SMTP kustom / Mock
-// ===================================================
 function buildTransport() {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
 
   if (!user || !pass) {
     console.warn('[email] EMAIL_USER / EMAIL_PASS not set — email disabled (mock mode)');
-    return null; // mock
+    return null; 
   }
 
   const host = process.env.EMAIL_HOST;
@@ -38,8 +33,6 @@ function buildTransport() {
       socketTimeout: 10_000,
     });
   }
-
-  // Default Gmail
   return nodemailer.createTransport({
     service: 'gmail',
     auth: { user, pass },
@@ -169,7 +162,6 @@ function otpTemplate(code) {
   const preheader = `Kode OTP Anda adalah ${code}. Berlaku 10 menit.`;
   const title = 'Kode Verifikasi Anda';
 
-  // Badge, kode besar, info kedaluwarsa, & CTA opsional
   const bodyHtml = `
     <!-- Badge / Label -->
     <div style="display:inline-block;padding:6px 10px;background:${BRAND_ACCENT};color:${BRAND_COLOR};border-radius:999px;font-weight:600;font-size:12px;margin-bottom:12px;">
