@@ -1,3 +1,4 @@
+// frontend/src/components/Navbar.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -14,9 +15,10 @@ export default function Navbar() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pathname = usePathname();
 
-  const isCoffeeShopPage = pathname.startsWith("/coffee-shop");
+  // ⬇️ Sebelumnya: pathname.startsWith("/coffee-shop")
+  //     Link kamu:  "/pengguna/coffeeshop"
+  const isCoffeeShopPage = pathname.startsWith("/pengguna/coffeeshop");
 
-  // Scroll effect
   useEffect(() => {
     if (isCoffeeShopPage) return;
     const handleScroll = () => {
@@ -26,7 +28,6 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isCoffeeShopPage]);
 
-  // Focus search input
   useEffect(() => {
     if (searchOpen) {
       const t = setTimeout(() => inputRef.current?.focus(), 150);
@@ -34,12 +35,10 @@ export default function Navbar() {
     }
   }, [searchOpen]);
 
-  // Close filter when search closed
   useEffect(() => {
     if (!searchOpen && showFilter) setShowFilter(false);
   }, [searchOpen, showFilter]);
 
-  // Warna dasar
   const baseStyle = isCoffeeShopPage
     ? "bg-white text-[#2b210a]"
     : isScrolled
@@ -63,7 +62,6 @@ export default function Navbar() {
       className={`fixed top-0 left-0 w-full z-50 flex items-center justify-between px-6 md:px-10 py-4 transition-all duration-500 ease-in-out ${baseStyle} shadow-md`}
       style={{ border: "none" }}
     >
-      {/* Logo kiri */}
       <div className="flex items-center">
         <Link
           href="/"
@@ -73,7 +71,6 @@ export default function Navbar() {
         </Link>
       </div>
 
-      {/* Menu tengah (desktop) */}
       <div className="hidden md:flex flex-1 justify-center transition-all duration-500 ease-in-out">
         <AnimatePresence>
           {!searchOpen && (
@@ -85,28 +82,16 @@ export default function Navbar() {
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className="flex gap-10 text-lg font-medium"
             >
-              <Link
-                href="/pengguna/home"
-                className="hover:text-yellow-600 transition-colors duration-300"
-              >
+              <Link href="/pengguna/home" className="hover:text-yellow-600 transition-colors duration-300">
                 Home
               </Link>
-              <Link
-                href="/pengguna/coffeeshop"
-                className="hover:text-yellow-600 transition-colors duration-300"
-              >
+              <Link href="/pengguna/coffeeshop" className="hover:text-yellow-600 transition-colors duration-300">
                 Coffeeshop
               </Link>
-              <Link
-                href="/pengguna/kategori"
-                className="hover:text-yellow-600 transition-colors duration-300"
-              >
+              <Link href="/pengguna/kategori" className="hover:text-yellow-600 transition-colors duration-300">
                 Kategori
               </Link>
-              <Link
-                href="/pengguna/tentang-kami"
-                className="hover:text-yellow-600 transition-colors duration-300"
-              >
+              <Link href="/pengguna/tentang-kami" className="hover:text-yellow-600 transition-colors duration-300">
                 Tentang Kami
               </Link>
             </motion.nav>
@@ -114,9 +99,7 @@ export default function Navbar() {
         </AnimatePresence>
       </div>
 
-      {/* Menu kanan */}
       <div className="flex items-center gap-3 md:gap-4 relative">
-        {/* Search Section */}
         <div className="relative flex items-center">
           <AnimatePresence>
             {searchOpen && (
@@ -185,7 +168,6 @@ export default function Navbar() {
             )}
           </AnimatePresence>
 
-          {/* Tombol Search utama */}
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setSearchOpen((prev) => !prev)}
@@ -195,7 +177,6 @@ export default function Navbar() {
           </motion.button>
         </div>
 
-        {/* User Icon */}
         <Link
           href="/pengguna/profil"
           className={`p-3 rounded-full transition-all duration-300 ${iconButtonStyle} hover:scale-105 active:scale-95`}
@@ -203,7 +184,6 @@ export default function Navbar() {
           <User className="w-6 h-6" />
         </Link>
 
-        {/* Tombol Menu Mobile */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setMenuOpen(!menuOpen)}
@@ -213,7 +193,6 @@ export default function Navbar() {
         </motion.button>
       </div>
 
-      {/* Mobile Dropdown Menu */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -223,18 +202,10 @@ export default function Navbar() {
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className={`absolute top-full left-0 w-full py-5 flex flex-col items-center space-y-4 text-lg font-medium md:hidden shadow-lg border-t-0 transition-all duration-500 ease-in-out ${dropdownBg}`}
           >
-            <Link href="/pengguna/home" onClick={() => setMenuOpen(false)}>
-              Home
-            </Link>
-            <Link href="/pengguna/coffeeshop" onClick={() => setMenuOpen(false)}>
-              Coffeeshop
-            </Link>
-            <Link href="/pengguna/kategori" onClick={() => setMenuOpen(false)}>
-              Kategori
-            </Link>
-            <Link href="/pengguna/tentang-kami" onClick={() => setMenuOpen(false)}>
-              Tentang Kami
-            </Link>
+            <Link href="/pengguna/home" onClick={() => setMenuOpen(false)}>Home</Link>
+            <Link href="/pengguna/coffeeshop" onClick={() => setMenuOpen(false)}>Coffeeshop</Link>
+            <Link href="/pengguna/kategori" onClick={() => setMenuOpen(false)}>Kategori</Link>
+            <Link href="/pengguna/tentang-kami" onClick={() => setMenuOpen(false)}>Tentang Kami</Link>
           </motion.div>
         )}
       </AnimatePresence>

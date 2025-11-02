@@ -1,5 +1,4 @@
-import React from "react";
-
+// src/components/mitra-form/StepIndicator.tsx
 interface StepIndicatorProps {
   step: number;
 }
@@ -15,7 +14,7 @@ export default function StepIndicator({ step }: StepIndicatorProps) {
 
         return (
           <div key={label} className="relative flex flex-col items-center w-full">
-            {/* Lingkaran Step */}
+            
             <div
               className={`w-10 h-10 flex items-center justify-center rounded-full text-lg font-semibold border-2 z-10 transition-all duration-500 ${
                 active
@@ -25,8 +24,6 @@ export default function StepIndicator({ step }: StepIndicatorProps) {
             >
               {index}
             </div>
-
-            {/* Label Step */}
             <p
               className={`mt-2 text-sm transition-colors duration-500 ${
                 active ? "text-[#271F01] font-medium" : "text-gray-400"
@@ -35,7 +32,6 @@ export default function StepIndicator({ step }: StepIndicatorProps) {
               {label}
             </p>
 
-            {/* Garis Penghubung (tidak digambar untuk step terakhir) */}
             {i < steps.length - 1 && (
               <div className="absolute top-5 left-1/2 w-full h-[5px] -z-10">
                 <div className="relative w-full h-full bg-gray-300">
