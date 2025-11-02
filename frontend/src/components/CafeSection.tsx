@@ -1,89 +1,110 @@
+// src/components/CafeSection.tsx
 "use client";
 
 import Image from "next/image";
 import { MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiListCafes } from "@/lib/api";
+import type { Cafe } from "@/types/domain";
+
+/**
+ * Komponen ini meniru tampilan lama 1:1:
+ * - Grid 3 kolom
+ * - Kartu dengan carousel gambar (auto slide + looping)
+ * - Overlay putih transparan saat hover, tombol "Lihat Selengkapnya"
+ * - Bagian alamat dengan hover "Buka di Google Maps"
+ *
+ * Bedanya: data diambil dari backend (apiListCafes). Kalau backend hanya punya satu gambar
+ * (cover_url), carousel tetap jalan (mengulang gambar yang sama).
+ */
 
 export default function CafeSection() {
-  const cafes = [
-    {
-      name: "SATUPERLIMA",
-      slug: "satuperlima",
-      address:
-        "Jl. Depok, Kembangsari, Kec. Semarang Tengah, Kota Semarang, Jawa Tengah 50133",
-      images: [
-        "/img/satuperlima/1.jpg",
-        "/img/satuperlima/2.jpg",
-        "/img/satuperlima/3.jpg",
-      ],
-      maps: "https://www.google.com/maps?q=SATUPERLIMA+Semarang",
-    },
-    {
-      name: "RENJANA",
-      slug: "renjana",
-      address:
-        "Jl. Depok, Kembangsari, Kec. Semarang Tengah, Kota Semarang Tengah, Kota Semarang, Jawa Tengah, 50133",
-      images: [
-        "/img/renjana/1.jpg",
-        "/img/renjana/2.jpg",
-        "/img/renjana/3.jpg",
-      ],
-      maps: "https://www.google.com/maps?q=RENJANA+Semarang",
-    },
-    {
-      name: "TERIKAT",
-      slug: "terikat",
-      address:
-        "Jl. Depok, Kembangsari, Kec. Semarang Tengah, Kota Semarang Tengah, Kota Semarang, Jawa Tengah, 50133",
-      images: [
-        "/img/terikat/1.jpg",
-        "/img/terikat/2.jpg",
-        "/img/terikat/3.jpg",
-      ],
-      maps: "https://www.google.com/maps?q=TERIKAT+Semarang",
-    },
-  ];
+  const [cafes, setCafes] = useState<Cafe[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await apiListCafes(); // { total, data }
+        if (!mounted) return;
+        setCafes(res.data ?? []);
+      } catch {
+        // diamkan agar tidak mengubah UI-mu (sesuai permintaan tidak ubah tampilan)
+        setCafes([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
-    <section
-      id="coffeeshop"
-      className="bg-white text-[#2b210a] py-20 px-6 md:px-16"
-    >
+    <section id="coffeeshop" className="bg-white text-[#2b210a] py-20 px-6 md:px-16">
       <h2 className="text-4xl md:text-5xl font-extrabold mb-12">
         Rekomendasi untuk Kamu
       </h2>
 
+      {/* Grid persis seperti versi lama */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-20 justify-items-center">
-        {cafes.map((cafe, index) => (
-          <CafeCard key={index} cafe={cafe} />
-        ))}
+        {loading && [0, 1, 2].map((i) => <SkeletonCard key={i} />)}
+        {!loading &&
+          cafes.map((cafe) => (
+            <CafeCard key={cafe.id} cafe={cafe} />
+          ))}
+        {!loading && cafes.length === 0 && (
+          <div className="col-span-full text-center text-sm text-gray-600">
+            Belum ada data coffeeshop.
+          </div>
+        )}
       </div>
 
       <div className="flex justify-center mt-14">
-        <button className="bg-[#4b3b09] text-white px-8 py-4 rounded-2xl text-lg font-medium hover:bg-[#2b210a] transition">
-          Lihat Semua Daftar Coffeeshop
-        </button>
+        <AllCafesButton />
       </div>
     </section>
   );
 }
 
-/* ---------- CafeCard ---------- */
-function CafeCard({ cafe }: { cafe: any }) {
+/* ---------- Tombol "Lihat Semua Daftar Coffeeshop" (sama seperti look & feel lama) ---------- */
+function AllCafesButton() {
   const router = useRouter();
+  return (
+    <button
+      onClick={() => router.push("/pengguna/coffeeshop")}
+      className="bg-[#4b3b09] text-white px-8 py-4 rounded-2xl text-lg font-medium hover:bg-[#2b210a] transition"
+    >
+      Lihat Semua Daftar Coffeeshop
+    </button>
+  );
+}
+
+/* ---------- Kartu cafe dengan carousel & overlay (replikasi versi lama) ---------- */
+function CafeCard({ cafe }: { cafe: Cafe }) {
+  const router = useRouter();
+
+  // Ambil sumber gambar untuk carousel: prioritaskan cover_url
+  const baseImages: string[] = [];
+  if (cafe.cover_url) baseImages.push(cafe.cover_url);
+  // jika suatu saat kamu menambah field lain (mis. cafe.gallery: string[]), bisa tambahkan di sini:
+  // if (Array.isArray((cafe as any).gallery)) baseImages.push(...(cafe as any).gallery);
+
+  const images = baseImages.length > 0 ? baseImages : ["/img/placeholder/cafe.jpg"];
+  const imagesExtended = [...images, images[0]]; // agar loop mulus seperti versi lama
 
   const [idx, setIdx] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [hoverImage, setHoverImage] = useState(false);
 
   const slideRef = useRef<HTMLDivElement | null>(null);
-  const original = cafe.images;
-  const imagesExtended = [...original, original[0]];
   const slideCount = imagesExtended.length;
 
-  const intervalMs = 3000;
-  const transitionMs = 700;
+  const intervalMs = 3000;   // sama dengan versi lama
+  const transitionMs = 700;  // sama dengan versi lama
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -94,7 +115,7 @@ function CafeCard({ cafe }: { cafe: any }) {
   }, []);
 
   useEffect(() => {
-    if (idx === original.length) {
+    if (idx === images.length) {
       const endTimer = setTimeout(() => {
         setIsTransitioning(false);
         setIdx(0);
@@ -102,9 +123,12 @@ function CafeCard({ cafe }: { cafe: any }) {
       }, transitionMs + 20);
       return () => clearTimeout(endTimer);
     }
-  }, [idx, original.length, transitionMs]);
+  }, [idx, images.length, transitionMs]);
 
   const slideWidthPercent = 100 / slideCount;
+
+  const slug = cafe.slug || String(cafe.id);
+  const mapsHref = getMapsLink(cafe);
 
   return (
     <div className="relative w-[280px] sm:w-[300px] md:w-[350px] rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all bg-white border border-gray-200 group">
@@ -124,9 +148,9 @@ function CafeCard({ cafe }: { cafe: any }) {
             transform: `translateX(-${idx * slideWidthPercent}%)`,
           }}
         >
-          {imagesExtended.map((src: string, i: number) => (
+          {imagesExtended.map((src, i) => (
             <div
-              key={i}
+              key={`${src}-${i}`}
               style={{ width: `${slideWidthPercent}%` }}
               className="relative h-[380px] flex-shrink-0"
             >
@@ -142,7 +166,7 @@ function CafeCard({ cafe }: { cafe: any }) {
           ))}
         </div>
 
-        {/* ===== Overlay teks animasi ===== */}
+        {/* ===== Overlay teks animasi (persis pattern lama) ===== */}
         <div
           className={`absolute bottom-0 left-0 w-full bg-white/20 backdrop-blur-sm text-white flex flex-col items-center justify-end transition-all duration-700 ease-in-out ${
             hoverImage ? "h-full" : "h-[60px]"
@@ -153,16 +177,12 @@ function CafeCard({ cafe }: { cafe: any }) {
               hoverImage ? "translate-y-[-120px]" : "translate-y-[40px]"
             }`}
           >
-            <p className="text-2xl font-bold tracking-wide text-center">
-              {cafe.name}
-            </p>
+            <p className="text-2xl font-bold tracking-wide text-center">{cafe.name}</p>
 
             <button
-              onClick={() => router.push(`/coffee-shop/${cafe.slug}`)}
+              onClick={() => router.push(`/coffee-shop/${slug}`)}
               className={`mt-4 bg-white text-[#2b210a] font-semibold px-5 py-2 rounded-full shadow-sm transition-all duration-700 ease-in-out ${
-                hoverImage
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-5"
+                hoverImage ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
               } hover:bg-[#4b3b09] hover:text-white`}
             >
               Lihat Selengkapnya
@@ -171,10 +191,10 @@ function CafeCard({ cafe }: { cafe: any }) {
         </div>
       </div>
 
-      {/* ===== Alamat ===== */}
+      {/* ===== Alamat + tombol Google Maps (hover reveal) ===== */}
       <div className="p-4 text-center bg-white">
         <a
-          href={cafe.maps}
+          href={mapsHref}
           target="_blank"
           rel="noopener noreferrer"
           className="group/location relative flex items-center justify-center gap-2 w-full transition-all duration-500"
@@ -184,7 +204,7 @@ function CafeCard({ cafe }: { cafe: any }) {
           <MapPin className="w-20 h-20 text-[#4b3b09] z-10 transition-all duration-500 group-hover/location:translate-x-9 group-hover/location:text-white" />
 
           <span className="z-10 text-gray-700 text-sm font-medium transition-all duration-500 opacity-100 group-hover/location:opacity-0">
-            {cafe.address}
+            {cafe.address ?? "Alamat tidak tersedia"}
           </span>
 
           <span className="absolute z-10 text-white font-bold text-[16px] opacity-0 group-hover/location:opacity-100 transition-all duration-500 translate-y-2 group-hover/location:translate-y-0">
@@ -194,4 +214,37 @@ function CafeCard({ cafe }: { cafe: any }) {
       </div>
     </div>
   );
+}
+
+/* ---------- Skeleton (hanya ketika loading, tidak mengubah look final) ---------- */
+function SkeletonCard() {
+  return (
+    <div className="relative w-[280px] sm:w-[300px] md:w-[350px] rounded-2xl overflow-hidden shadow-md bg-white border border-gray-200">
+      <div className="w-full h-[380px] bg-neutral-200 animate-pulse" />
+      <div className="p-4">
+        <div className="h-5 w-1/2 bg-neutral-200 rounded mb-2 animate-pulse" />
+        <div className="h-4 w-full bg-neutral-200 rounded animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Helpers ---------- */
+function getMapsLink(cafe: Cafe): string {
+  // Jika backend sudah menyimpan lat/lng → gunakan query lat,lng. Kalau tidak, fallback ke "nama + alamat".
+  const lat = toNum(cafe.lat);
+  const lng = toNum(cafe.lng);
+  if (lat !== null && lng !== null) {
+    return `https://www.google.com/maps?q=${lat},${lng}`;
+  }
+  const q = [cafe.name, cafe.address].filter(Boolean).join(" ");
+  return `https://www.google.com/maps?q=${encodeURIComponent(q)}`;
+}
+
+// helper parse DECIMAL string → number | null
+function toNum(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
 }

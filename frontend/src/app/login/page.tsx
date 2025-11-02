@@ -1,29 +1,54 @@
+// src/app/login/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Slideshow from "@/components/SlideShow";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
+import { canAccess, routeForRole } from "@/lib/roles";
 
 export default function LoginPage() {
+  const { user, loading, login } = useAuth();
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nextPath, setNextPath] = useState<string>("/");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const qs = new URLSearchParams(window.location.search);
+      setNextPath(qs.get("next") || "/");
+    }
+  }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!loading && user) {
+      const preferred = nextPath || "/";
+      const target = canAccess(user.role, preferred) ? preferred : routeForRole(user.role);
+      router.replace(target);
+    }
+  }, [loading, user, router, nextPath]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log({ email, password });
+    try {
+      const u = await login(email.trim(), password);
+      const preferred = nextPath || "/";
+      const target = canAccess(u.role, preferred) ? preferred : routeForRole(u.role);
+      router.replace(target);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login gagal";
+      alert(msg);
+    }
   };
 
   return (
     <div className="flex min-h-screen relative">
-      {/* Bagian Kiri (Form Login) */}
       <div className="w-full md:w-[40%] bg-[#2b210a] flex flex-col justify-center items-center px-10 py-12 text-white z-10 relative">
         <div className="w-full max-w-sm space-y-6">
-          {/* Judul Sign In */}
-          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">
-            Sign In
-          </h1>
+          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">Sign In</h1>
 
-          {/* Form Login */}
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block mb-2 text-sm font-semibold">Email</label>
@@ -50,9 +75,7 @@ export default function LoginPage() {
             </div>
 
             <div className="flex justify-between text-sm font-medium">
-              <a href="#" className="hover:underline">
-                Lupa Password
-              </a>
+              <a href="#" className="hover:underline">Lupa Password</a>
             </div>
 
             <button
@@ -61,20 +84,14 @@ export default function LoginPage() {
             >
               Login
             </button>
-
             <p className="text-center text-sm">
               Tidak punya akun?{" "}
-              <a href="/register" className="font-semibold hover:underline">
-                Buat Akun
-              </a>
+              <a href="/register" className="font-semibold hover:underline">Buat Akun</a>
             </p>
           </form>
         </div>
       </div>
-
-      {/* Bagian Kanan (Gambar + Teks Sambutan) */}
       <div className="hidden md:flex flex-col justify-center w-[60%] relative overflow-hidden">
-        {/* Gambar Background */}
         <div className="absolute inset-0">
           <Image
             src="/img/login/LoginPage.jpg"
@@ -86,7 +103,6 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-black/40" />
         </div>
 
-        {/* Teks Sambutan */}
         <div className="relative z-10 px-12">
           <h2 className="text-5xl font-extrabold text-white mb-4 leading-tight drop-shadow-lg">
             Hello, <br /> Selamat Datang!
@@ -97,8 +113,6 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
-
-      {/* Slideshow di bawah dan selalu terlihat */}
       <div className="fixed bottom-0 left-0 w-full bg-[#2b210a]/90 z-50">
         <Slideshow />
       </div>

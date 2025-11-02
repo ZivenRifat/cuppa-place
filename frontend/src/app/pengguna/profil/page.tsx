@@ -1,6 +1,7 @@
+// frontend/src/app/pengguna/profil/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Mail,
   Phone,
@@ -16,44 +17,66 @@ import Navbar from "@/components/Navbar";
 import { Button } from "@/components/pengguna/ui/button";
 import { Badge } from "@/components/pengguna/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/pengguna/ui/avatar";
+import { useAuth } from "@/lib/auth";
+import { apiMyFavorites } from "@/lib/api";
+import type { Cafe, User } from "@/types/domain";
+import { useRouter } from "next/navigation";
+
+type FavoriteRow = {
+  id: number;
+  cafe: Cafe; // backend mengirim favorite dengan include { cafe }
+};
 
 export default function UserProfilePage() {
-  const [user] = useState({
-    name: "Sarah Anderson",
-    bio: "Coffee enthusiast & explorer of local cafés. Always on the hunt for the perfect espresso!",
-    email: "sarah.anderson@email.com",
-    phone: "+1 (555) 123-4567",
-    location: "Portland, OR",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-  });
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
 
-  const [favorites] = useState([
-    {
-      id: 1,
-      name: "Renjana Coffee",
-      image:
-        "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400&h=300&fit=crop",
-      rating: 4.8,
-    },
-    {
-      id: 2,
-      name: "Terikat Coffee",
-      image:
-        "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400&h=300&fit=crop",
-      rating: 4.6,
-    },
-  ]);
+  // redirect ke login kalau belum login
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login?next=/pengguna/profil");
+    }
+  }, [loading, user, router]);
 
-  const [reviews] = useState([
-    {
-      id: 1,
-      shopName: "The Roasted Bean",
-      rating: 5,
-      comment:
-        "Amazing atmosphere and the best cappuccino I've had in Portland!",
-      date: "2 days ago",
-    },
-  ]);
+  // ====== Favorites (nyata dari backend) ======
+  const [favorites, setFavorites] = useState<FavoriteRow[]>([]);
+  const [favErr, setFavErr] = useState<string | null>(null);
+  const [favLoading, setFavLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!user) return;
+    setFavLoading(true);
+    setFavErr(null);
+    (async () => {
+      try {
+        const rows = (await apiMyFavorites()) as FavoriteRow[];
+        setFavorites(Array.isArray(rows) ? rows : []);
+      } catch (e: unknown) {
+        setFavErr(e instanceof Error ? e.message : "Gagal memuat favorit");
+      } finally {
+        setFavLoading(false);
+      }
+    })();
+  }, [user]);
+
+  // ====== Profile data dari user login (fallback bila kosong) ======
+  const profile = useMemo(() => {
+    const u = (user ?? {}) as Partial<User>;
+    const avatar =
+      u.avatar_url ??
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+        u.name || "User"
+      )}`;
+    return {
+      name: u.name ?? "User",
+      bio:
+        "Coffee enthusiast & explorer of local cafés. Always on the hunt for the perfect espresso!",
+      email: u.email ?? "-",
+      phone: u.phone ?? "-",
+      location: "-", // belum ada di schema user -> pakai placeholder
+      avatar,
+    };
+  }, [user]);
 
   const renderStars = (rating: number) => (
     <div className="flex gap-0.5">
@@ -70,6 +93,52 @@ export default function UserProfilePage() {
     </div>
   );
 
+  const initials =
+    profile.name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2) || "U";
+
+  const onLogout = () => {
+    logout();
+    router.replace("/login");
+  };
+
+  // (opsional) dummy recent reviews sampai backend punya endpoint user-reviews
+  const reviews = [
+    {
+      id: 1,
+      shopName: "The Roasted Bean",
+      rating: 5,
+      comment:
+        "Amazing atmosphere and the best cappuccino I've had!",
+      date: "2 days ago",
+    },
+  ];
+
+  // Saat loading auth, tampilkan skeleton sederhana
+  if (loading && !user) {
+    return (
+      <div className="min-h-screen bg-white text-[#271F01]">
+        <Navbar />
+        <main className="container mx-auto px-8 py-8 max-w-6xl pt-28 space-y-8">
+          <div className="h-40 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="space-y-6">
+              <div className="h-60 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+              <div className="h-52 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+            </div>
+            <div className="md:col-span-2 space-y-8">
+              <div className="h-72 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+              <div className="h-72 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white text-[#271F01]">
       <Navbar />
@@ -79,26 +148,34 @@ export default function UserProfilePage() {
         <div className="bg-white p-5 rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
           <div className="relative flex flex-col md:flex-row items-center md:items-end gap-4">
             <Avatar className="h-32 w-32 p-5 rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300">
-              <AvatarImage src={user.avatar} alt={user.name} />
+              <AvatarImage src={profile.avatar} alt={profile.name} />
               <AvatarFallback className="text-2xl bg-[#271F01] text-white">
-                {user.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 text-center md:text-left mb-4 md:mb-0">
-              <h2 className="text-3xl font-bold">{user.name}</h2>
-              <p className="mt-2 max-w-2xl text-gray-600">{user.bio}</p>
+              <h2 className="text-3xl font-bold">{profile.name}</h2>
+              <p className="mt-2 max-w-2xl text-gray-600">{profile.bio}</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 border border-gray-400/40 text-[#271F01]"
-            >
-              <Edit2 className="h-4 w-4" />
-              Edit Profile
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 border border-gray-400/40 text-[#271F01]"
+              >
+                <Edit2 className="h-4 w-4" />
+                Edit Profile
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+                onClick={onLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -115,17 +192,17 @@ export default function UserProfilePage() {
               <InfoItem
                 icon={<Mail className="h-4 w-4" />}
                 label="Email"
-                value={user.email}
+                value={profile.email}
               />
               <InfoItem
                 icon={<Phone className="h-4 w-4" />}
                 label="Phone"
-                value={user.phone}
+                value={profile.phone}
               />
               <InfoItem
                 icon={<MapPin className="h-4 w-4" />}
                 label="Location"
-                value={user.location}
+                value={profile.location}
               />
             </div>
 
@@ -150,6 +227,7 @@ export default function UserProfilePage() {
                 <Button
                   variant="destructive"
                   className="w-full justify-start gap-2"
+                  onClick={onLogout}
                 >
                   <LogOut className="h-4 w-4" />
                   Logout
@@ -166,39 +244,67 @@ export default function UserProfilePage() {
                 <Heart className="h-5 w-5 text-[#271F01] fill-[#271F01]" />
                 Favorite Coffee Shops
               </h3>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {favorites.map((shop) => (
-                  <div
-                    key={shop.id}
-                    className="bg-white rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden"
-                  >
-                    <div className="aspect-video overflow-hidden">
-                      <img
-                        src={shop.image}
-                        alt={shop.name}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold mb-2">{shop.name}</h3>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          {renderStars(Math.round(shop.rating))}
-                          <span className="text-sm text-gray-500 ml-1">
-                            {shop.rating}
-                          </span>
+
+              {favErr && (
+                <div className="text-sm text-red-600 mb-2">{favErr}</div>
+              )}
+
+              {favLoading ? (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="h-40 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+                  <div className="h-40 rounded-xl border border-gray-300/40 animate-pulse bg-gray-100" />
+                </div>
+              ) : favorites.length === 0 ? (
+                <div className="text-sm text-neutral-600">
+                  Belum ada favorit.
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {favorites.map((row) => {
+                    const cafe = row.cafe;
+                    return (
+                      <div
+                        key={row.id}
+                        className="bg-white rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden"
+                      >
+                        <div className="aspect-video overflow-hidden">
+                          <img
+                            src={
+                              cafe.cover_url ??
+                              "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?w=800&q=60"
+                            }
+                            alt={cafe.name}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
                         </div>
-                        <Button size="sm" variant="secondary">
-                          View Details
-                        </Button>
+                        <div className="p-4">
+                          <h3 className="font-semibold mb-2">{cafe.name}</h3>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              {renderStars(5)}
+                              <span className="text-sm text-gray-500 ml-1">
+                                {cafe.address ?? "—"}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                router.push(`/cafe/${cafe.slug ?? cafe.id}`)
+                              }
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Recent Reviews */}
+            {/* Recent Reviews (placeholder) */}
             <div className="bg-white p-5 rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300">
               <h3 className="text-xl font-semibold flex items-center gap-2 mb-4">
                 <Star className="h-5 w-5 text-[#271F01]" />

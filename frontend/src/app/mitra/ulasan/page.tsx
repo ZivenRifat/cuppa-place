@@ -1,42 +1,169 @@
+// src/app/mitra/ulasan/page.tsx
 "use client";
 
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Star } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { apiMyCafes, apiCafeReviews } from "@/lib/api";
+import type { Cafe, Review, ListReviewsResp } from "@/types/domain";
+import { routeForRole } from "@/lib/roles";
+
+function Stars({ n }: { n: number }) {
+  return (
+    <div className="flex items-center text-yellow-500">
+      {Array.from({ length: n }).map((_, i) => (
+        <Star key={i} size={14} className="fill-yellow-400 text-yellow-400" />
+      ))}
+    </div>
+  );
+}
+
+function fmtDate(iso?: string) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    // tampil sederhana: YYYY-MM-DD
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return iso;
+  }
+}
 
 export default function ReviewsPage() {
-  const reviews = [
-    {
-      id: 1,
-      name: "Ngasdi",
-      rating: 5,
-      date: "2025-11-30",
-      text: "Kopinya enak banget, tempatnya recommended buat nugas — cozy banget!!!",
+  const { user, loading } = useAuth();
+
+  // guard role
+  useEffect(() => {
+    if (!loading && user && !["mitra", "admin"].includes(user.role)) {
+      window.location.replace(routeForRole(user.role));
+    }
+  }, [loading, user]);
+
+  const [cafes, setCafes] = useState<Cafe[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
+
+  const [items, setItems] = useState<Review[]>([]);
+  const [total, setTotal] = useState<number>(0);
+  const [avg, setAvg] = useState<number>(0);
+  const [counts, setCounts] = useState<Record<number, number>>({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+
+  const [ratingFilter, setRatingFilter] = useState<number | null>(null);
+  const [pending, setPending] = useState<boolean>(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  }, []);
+
+  // load cafes milik mitra
+  useEffect(() => {
+    (async () => {
+      if (!user) return;
+      try {
+        const res = await apiMyCafes(); // { data: Cafe[] }
+        const list = res.data ?? [];
+        setCafes(list);
+        if (list.length && !activeId) setActiveId(list[0].id);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Gagal memuat daftar cafe";
+        setErr(msg);
+      }
+    })();
+  }, [user, activeId]);
+
+  // fetch reviews untuk cafe aktif
+  const fetchReviews = useCallback(
+    async (cid: number, star?: number | null) => {
+      setPending(true);
+      setErr(null);
+      try {
+        const resp = await apiCafeReviews(cid, {
+          rating: star ?? undefined,
+          limit: 100, // cukup banyak untuk awal; bisa dibuat pagination nanti
+        });
+
+        // backend boleh mengembalikan avg & counts; jika tidak, hitung di client
+        const payload = resp as ListReviewsResp;
+        const data = payload.data ?? [];
+
+        let avgLocal = payload.avg ?? 0;
+        let countsLocal = payload.counts as Record<number, number> | undefined;
+
+        if (!avgLocal || !countsLocal) {
+          const cts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+          let sum = 0;
+            data.forEach((r: Review) => {
+            cts[r.rating] = (cts[r.rating] ?? 0) + 1;
+            sum += r.rating;
+            });
+          countsLocal = cts;
+          avgLocal = data.length ? Number((sum / data.length).toFixed(2)) : 0;
+        }
+
+        setItems(data);
+        setTotal(payload.total ?? data.length);
+        setAvg(avgLocal);
+        setCounts({
+          1: countsLocal[1] ?? 0,
+          2: countsLocal[2] ?? 0,
+          3: countsLocal[3] ?? 0,
+          4: countsLocal[4] ?? 0,
+          5: countsLocal[5] ?? 0,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Gagal memuat ulasan";
+        setErr(msg);
+        showToast(msg);
+      } finally {
+        setPending(false);
+      }
     },
-    {
-      id: 2,
-      name: "Topik",
-      rating: 5,
-      date: "2025-11-30",
-      text: "Rasa kopinya mantap dan pelayanannya cepat. Tempatnya juga nyaman.",
-    },
-    {
-      id: 3,
-      name: "Roki Hermawan",
-      rating: 4,
-      date: "2025-11-30",
-      text: "Tempatnya keren, tapi kadang agak ramai di jam sore. Overall good!",
-    },
-    {
-      id: 4,
-      name: "Alya",
-      rating: 5,
-      date: "2025-11-30",
-      text: "Baristanya ramah dan hasil latte art-nya keren banget 😍.",
-    },
-  ];
+    [showToast]
+  );
+
+  useEffect(() => {
+    if (!activeId) return;
+    void fetchReviews(activeId, ratingFilter);
+  }, [activeId, ratingFilter, fetchReviews]);
+
+  const activeCafe = useMemo(() => cafes.find((c) => c.id === activeId) ?? null, [cafes, activeId]);
 
   return (
     <section className="p-8 text-[#1b1405] space-y-6">
-      {/* Header */}
+      {/* Top bar pilih cafe (opsional jika punya banyak) */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-sm text-gray-600">
+          {activeCafe ? (
+            <>
+              Ulasan untuk: <b>{activeCafe.name}</b>
+              {ratingFilter ? (
+                <span className="ml-2 text-gray-500">(Filter: {ratingFilter}★)</span>
+              ) : null}
+            </>
+          ) : (
+            "Tidak ada cafe"
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Pilih Cafe:</span>
+          <select
+            className="border border-gray-300/80 rounded-md px-3 py-2 bg-white"
+            value={activeId ?? ""}
+            onChange={(e) => setActiveId(Number(e.target.value) || null)}
+          >
+            {cafes.length === 0 && <option value="">—</option>}
+            {cafes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Header stat + filter */}
       <div className="bg-white border border-gray-300/40 rounded-xl p-6 shadow-md">
         <h1 className="text-xl font-bold mb-3">Ulasan Pelanggan</h1>
 
@@ -44,57 +171,89 @@ export default function ReviewsPage() {
           <div className="flex items-center gap-3">
             <Star size={30} className="fill-[#2b210a] text-[#2b210a]" />
             <p className="text-2xl font-bold">
-              4.5 <span className="text-base font-normal">/ 5.0</span>
+              {avg || 0} <span className="text-base font-normal">/ 5.0</span>
             </p>
+            <span className="text-sm text-gray-500">({total} ulasan)</span>
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {[5, 4, 3, 2, 1].map((star) => (
-              <button
-                key={star}
-                className="border border-[#2b210a]/20 rounded-md px-3 py-1 text-sm flex items-center gap-2 
-                           hover:bg-[#f9f8f6] hover:shadow-sm transition-all duration-150"
-              >
-                <Star size={14} className="fill-[#2b210a] text-[#2b210a]" /> {star}{" "}
-                bintang
-              </button>
-            ))}
+            {[5, 4, 3, 2, 1].map((star) => {
+              const active = ratingFilter === star;
+              return (
+                <button
+                  key={star}
+                  onClick={() => setRatingFilter(active ? null : star)}
+                  disabled={pending}
+                  className={`border rounded-md px-3 py-1 text-sm flex items-center gap-2 transition-all duration-150 ${
+                    active
+                      ? "bg-[#2b210a] text-white border-[#2b210a]"
+                      : "border-[#2b210a]/20 hover:bg-[#f9f8f6] hover:shadow-sm"
+                  }`}
+                >
+                  <Star size={14} className={active ? "fill-white" : "fill-[#2b210a] text-[#2b210a]"} />{" "}
+                  {star} bintang
+                  <span className="text-xs opacity-75">({counts[star] ?? 0})</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* List Reviews */}
-      <div className="bg-white border border-gray-300/40 rounded-xl p-6 shadow-md space-y-6">
-        {reviews.map((review) => (
-          <div
-            key={review.id}
-            className="border-b border-gray-300/40 pb-4 last:border-none"
-          >
-            <div className="flex gap-4 items-start">
-              {/* Avatar */}
-              <div className="bg-[#f5f3f0] rounded-full p-3 w-12 h-12 flex items-center justify-center text-[#2b210a] text-xl font-bold shadow-sm">
-                <span>👤</span>
-              </div>
-
-              {/* Review Content */}
-              <div className="flex-1">
-                <p className="font-bold">{review.name}</p>
-                <div className="flex items-center text-yellow-500 mb-1">
-                  {Array.from({ length: review.rating }).map((_, i) => (
-                    <Star
-                      key={i}
-                      size={14}
-                      className="fill-yellow-400 text-yellow-400"
-                    />
-                  ))}
+      {/* Loading shimmer */}
+      {pending && (
+        <div className="bg-white border border-gray-300/40 rounded-xl p-6 shadow-md space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="flex gap-4 items-start mb-2">
+                <div className="bg-[#f5f3f0] rounded-full w-12 h-12"></div>
+                <div className="flex-1">
+                  <div className="h-4 w-40 bg-gray-200 rounded mb-2" />
+                  <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
+                  <div className="h-3 w-full bg-gray-200 rounded" />
                 </div>
-                <p className="text-sm text-gray-500 mb-2">{review.date}</p>
-                <p className="leading-relaxed text-[#2b210a]/90">{review.text}</p>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* List Reviews */}
+      {!pending && (
+        <div className="bg-white border border-gray-300/40 rounded-xl p-6 shadow-md space-y-6">
+          {items.length === 0 && (
+            <div className="text-sm text-gray-500">Belum ada ulasan untuk filter ini.</div>
+          )}
+
+          {items.map((review) => (
+            <div key={review.id} className="border-b border-gray-300/40 pb-4 last:border-none">
+              <div className="flex gap-4 items-start">
+                {/* Avatar sederhana */}
+                <div className="bg-[#f5f3f0] rounded-full p-3 w-12 h-12 flex items-center justify-center text-[#2b210a] text-xl font-bold shadow-sm">
+                  <span>👤</span>
+                </div>
+
+                {/* Review Content */}
+                <div className="flex-1">
+                  <p className="font-bold">{review.author?.name || "Pengguna"}</p>
+                  <div className="mb-1">
+                    <Stars n={review.rating} />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-2">{fmtDate(review.created_at)}</p>
+                  <p className="leading-relaxed text-[#2b210a]/90">{review.comment || "—"}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Toast error ringan */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl px-4 py-2 shadow-lg border text-sm bg-red-50/95 border-red-200 text-red-900">
+          {toast}
+        </div>
+      )}
     </section>
   );
 }
