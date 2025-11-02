@@ -1,0 +1,24 @@
+# Node / monorepo
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+out/
+.vercel/
+dist/
+build/
+
+# Logs & misc
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Upload/temp
+uploads/
+tmp/
