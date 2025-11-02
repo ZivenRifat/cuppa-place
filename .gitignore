@@ -11,16 +11,13 @@ frontend/out/
 frontend/dist/
 frontend/build/
 
-# Hanya skip sub-folder berat di public (bukan seluruh public)
+# Hanya ignore subfolder berat di public (bukan seluruh public)
 frontend/public/logos/**
 !frontend/public/logos/.gitkeep
-
 frontend/public/img/**
 !frontend/public/img/.gitkeep
-
 frontend/public/menu/**
 !frontend/public/menu/.gitkeep
-
 frontend/public/uploads/**
 !frontend/public/uploads/.gitkeep
 
@@ -34,7 +31,7 @@ backend/.temp/
 # ---- Coverage / testing ----
 coverage/
 
-# ---- Env files (jangan commit rahasia)
+# ---- Env files (jangan commit rahasia) ----
 .env
 .env.*
 !.env.example
@@ -48,7 +45,7 @@ backend/.env.*
 # ---- Logs ----
 *.log
 
-# ---- Database local (kalau ada SQLite)
+# ---- Database local (opsional)
 *.sqlite
 *.sqlite-journal
 
