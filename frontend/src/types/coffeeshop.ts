@@ -1,27 +1,26 @@
 export interface Review {
   id: number;
   author: string;
-  avatar?: string;
   rating: number;
   comment: string;
   date: string;
+  avatar?: string; 
 }
 
 export interface MenuItem {
+  id?: number;
   name: string;
+  price: number;
   image: string;
-  price: string;
+  category?: string;
 }
 
 export interface CoffeeShop {
-  slug: string;
   name: string;
-  about: string;
-  rating: number;
   address: string;
-  hours: string;
-  maps: string;
+  rating: number;
+  openHours: string;
   images: string[];
-  menus: Record<string, MenuItem[]>;
+  menus: any; 
   reviews: Review[];
 }

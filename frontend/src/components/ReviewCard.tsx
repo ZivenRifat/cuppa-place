@@ -14,7 +14,10 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
     <Card className="p-6 bg-card border-border hover:shadow-md transition-shadow">
       <div className="flex items-start gap-4">
         <img
-          src={review.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.author}`}
+          src={
+            review.avatar ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.author}`
+          }
           alt={review.author}
           className="w-12 h-12 rounded-full bg-muted"
         />

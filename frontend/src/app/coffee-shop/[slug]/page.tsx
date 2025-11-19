@@ -1,116 +1,198 @@
 "use client";
 
+import { useState } from "react";
+import { dummyCoffeeShop } from "@/data/dummyCoffeeShop";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { coffeeShops } from "@/data/coffeeShops";
-import { Star, MapPin, ArrowLeft, Clock } from "lucide-react";
+import MenuSection from "@/components/MenuSection";
+import ReviewSection from "@/components/ReviewSection";
+import { Star, MapPin, Clock, Bookmark, ImagePlus } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { ReviewList } from "@/components/ReviewList";
 
 export default function CoffeeShopPage({ params }: { params: { slug: string } }) {
-  const router = useRouter();
-  const shop = coffeeShops.find((c) => c.slug === params.slug);
+  const coffeeShop = dummyCoffeeShop;
 
-  if (!shop) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white text-[#2b210a]">
-        Coffee shop tidak ditemukan.
-      </div>
-    );
-  }
+  // STATE FORM LIVE COMMENT
+  const [commentText, setCommentText] = useState("");
+  const [commentImage, setCommentImage] = useState<string | null>(null);
+
+  const openMaps = () => {
+    window.open("https://www.google.com/maps?q=Renjana+Coffee+Semarang", "_blank");
+  };
+
+  // HANDLE UPLOAD GAMBAR
+  const handleImageUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (file) {
+      const imgUrl = URL.createObjectURL(file);
+      setCommentImage(imgUrl);
+    }
+  };
+
+  // KIRIM KOMENTAR
+  const handleSubmitComment = () => {
+    if (!commentText) return alert("Komentar tidak boleh kosong!");
+
+    alert("Komentar berhasil dikirim (dummy).");
+
+    setCommentText("");
+    setCommentImage(null);
+  };
 
   return (
-    <div className="min-h-screen bg-white text-[#2b210a]">
+    <>
       <Navbar />
+      <main className="bg-white text-[#271F01] min-h-screen pb-24 pt-20">
+        <div className="max-w-6xl mx-auto px-6 md:px-10 pt-6">
+          
+          {/* ===== BACK BUTTON ===== */}
+          <button
+            onClick={() => history.back()}
+            className="flex items-center gap-2 text-[#271F01] text-lg font-medium mb-4 hover:underline"
+          >
+            ← Back
+          </button>
 
-      {/* Tombol Back */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-1 text-[#2b210a] text-sm pt-24 px-6 py-4 hover:underline"
-      >
-        <ArrowLeft size={18} /> Back
-      </button>
-
-      {/* Gambar utama */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 px-6 md:px-10">
-        <div className="md:col-span-1 relative aspect-[3/2] rounded-lg overflow-hidden">
-          <Image src={shop.images[0]} alt={shop.name} fill className="object-cover" />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {shop.images.slice(1).map((src, i) => (
-            <div key={i} className="relative aspect-[3/2] rounded-lg overflow-hidden">
-              <Image src={src} alt={`${shop.name} ${i + 2}`} fill className="object-cover" />
+          {/* ===== IMAGE GALLERY ===== */}
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+            <div className="md:col-span-2 lg:col-span-2">
+              <Image
+                src={coffeeShop.images[0]}
+                alt="Main shop photo"
+                width={600}
+                height={400}
+                className="w-full h-full object-cover rounded-xl"
+              />
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Info */}
-      <div className="px-6 md:px-10 mt-8">
-        <h1 className="text-2xl font-bold">{shop.name}</h1>
-
-        {/* Rating, Jam, Lokasi */}
-        <div className="flex flex-wrap items-center gap-6 mt-3 text-sm text-gray-700">
-          <div className="flex items-center gap-1">
-            <Star className="text-yellow-500 fill-yellow-500 w-5 h-5" />
-            <span>{shop.rating}/5 Rating</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock size={16} />
-            <span>{shop.hours}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <MapPin size={16} />
-            <span>{shop.address}</span>
-          </div>
-        </div>
-
-        {/* Tombol Google Maps */}
-        <a
-          href={shop.maps}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-[#2b210a] text-white px-4 py-2 mt-4 rounded-xl font-semibold hover:bg-[#4b3b09] transition"
-        >
-          <MapPin size={18} /> Open in Google Maps
-        </a>
-      </div>
-
-      {/* About + Menu + Reviews */}
-      <div className="px-6 md:px-10 mt-10 pb-16">
-        {/* About */}
-        <h2 className="text-xl font-bold mb-3">About</h2>
-        <p className="text-gray-700 text-sm leading-relaxed mb-8">{shop.about}</p>
-
-        {/* Menu */}
-        {Object.entries(shop.menus).map(([category, items]) => (
-          <div key={category} className="mb-10">
-            <h2 className="text-lg font-bold mb-4">{category}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
-              {items.map((item) => (
-                <div
-                  key={item.name}
-                  className="relative bg-white border border-gray-200 shadow-sm rounded-2xl overflow-hidden group hover:shadow-md transition"
-                >
-                  <div className="relative aspect-[4/5] w-full">
-                    <Image src={item.image} alt={item.name} fill className="object-contain p-4" />
-                    <div className="absolute top-2 right-2 bg-[#2b210a] text-white text-xs font-semibold px-2 py-1 rounded-full">
-                      {item.price}
-                    </div>
-                  </div>
-                  <p className="text-center font-semibold text-sm mb-3">{item.name}</p>
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 col-span-3">
+              {coffeeShop.images.slice(1, 5).map((img, i) => (
+                <Image
+                  key={i}
+                  src={img}
+                  alt={`Gallery ${i}`}
+                  width={200}
+                  height={150}
+                  className="rounded-xl w-full h-full object-cover"
+                />
               ))}
             </div>
           </div>
-        ))}
 
-        {/* Reviews */}
-        <div className="mt-12">
-          <h2 className="text-xl font-bold mb-4">Reviews</h2>
-          <ReviewList reviews={shop.reviews} />
+          {/* ===== INFO SECTION ===== */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+            <div>
+              <h1 className="text-4xl font-extrabold mb-2">{coffeeShop.name}</h1>
+
+              <div className="flex flex-wrap items-center gap-4 text-[#271F01]/80 text-sm md:text-base">
+                <div className="flex items-center gap-1">
+                  <Star size={18} className="text-yellow-500" />
+                  <span className="font-semibold">{coffeeShop.rating}/5</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin size={18} />
+                  {coffeeShop.address}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock size={18} /> {coffeeShop.openHours}
+                </div>
+              </div>
+            </div>
+
+            <Bookmark
+              size={26}
+              className="text-[#271F01] mt-4 md:mt-0 cursor-pointer hover:text-yellow-600 transition"
+            />
+          </div>
+
+          {/* ===== PINDAHAN: Tombol Buka Google Maps ===== */}
+          <div className="mt-3 flex">
+            <button
+              onClick={openMaps}
+              className="bg-[#271F01] text-white px-6 py-3 rounded-xl hover:bg-[#3C3110] transition flex items-center gap-2"
+            >
+              <MapPin size={20} /> Buka di Google Maps
+            </button>
+          </div>
+
+          {/* ===== MENU SECTIONS ===== */}
+          <div className="space-y-12 mt-8">
+            {coffeeShop.menus?.map((m) => (
+              <MenuSection key={m.category} title={m.category} items={m.items} />
+            ))}
+          </div>
+
+          {/*========LIVE COMMENT + FORM INPUT========*/}
+
+          <section className="mt-20">
+            <h2 className="text-2xl font-extrabold mb-6">Live Comment</h2>
+
+            {/* === FORM COMMENT === */}
+            <div className="border border-[#E6E1D6] p-5 rounded-xl mb-6 shadow-sm">
+              <h3 className="font-bold mb-2">Tulis Komentar</h3>
+
+              <textarea
+                className="w-full border border-[#D6D2C6] rounded-xl p-3 outline-none focus:border-[#271F01]"
+                placeholder="Tulis komentar kamu..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+              />
+
+              {/* Upload gambar */}
+              <div className="mt-4 flex items-center gap-3">
+                <label className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-[#271F01] rounded-xl hover:bg-[#EFEDE7] transition">
+                  <ImagePlus size={18} />
+                  Upload Foto
+                  <input type="file" className="hidden" onChange={handleImageUpload} />
+                </label>
+
+                {commentImage && (
+                  <Image
+                    src={commentImage}
+                    alt="Preview"
+                    width={80}
+                    height={60}
+                    className="rounded-md object-cover"
+                  />
+                )}
+              </div>
+
+              {/* Tombol Kirim */}
+              <button
+                onClick={handleSubmitComment}
+                className="mt-4 w-full bg-[#271F01] text-white py-3 rounded-xl hover:bg-[#3A300A] transition font-medium"
+              >
+                Kirim Komentar
+              </button>
+            </div>
+
+            {/* === LIST LIVE COMMENTS === */}
+            <div className="flex gap-5 overflow-x-auto pb-4">
+              {coffeeShop.liveComments?.map((comment, i) => (
+                <div
+                  key={i}
+                  className="min-w-[240px] bg-white border border-[#E6E1D6] rounded-2xl p-4 shadow-sm"
+                >
+                  <p className="text-sm font-semibold mb-2">@{comment.user}</p>
+                  <p className="text-sm italic text-gray-600 mb-2">"{comment.text}"</p>
+
+                  <Image
+                    src={comment.image}
+                    alt="comment photo"
+                    width={200}
+                    height={140}
+                    className="rounded-xl object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ===== REVIEWS SECTION ===== */}
+          <section className="mt-16">
+            <h2 className="text-2xl font-extrabold mb-6">Ulasan</h2>
+            <ReviewSection reviews={coffeeShop.reviews} />
+          </section>
         </div>
-      </div>
-    </div>
+      </main>
+    </>
   );
 }

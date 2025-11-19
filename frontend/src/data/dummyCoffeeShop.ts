@@ -1,9 +1,9 @@
+// src/data/dummyCoffeeShop.ts
 export interface MenuItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
   image: string;
-  category: string;
 }
 
 export interface CoffeeShop {
@@ -12,7 +12,22 @@ export interface CoffeeShop {
   rating: number;
   openHours: string;
   images: string[];
-  menus: MenuItem[];
+  menus: {
+    category: string;
+    items: MenuItem[];
+  }[];
+  liveComments?: {
+    user: string;
+    text: string;
+    image: string;
+  }[];
+  reviews: {
+    id: number;
+    author: string;
+    rating: number;
+    comment: string;
+    date: string;
+  }[];
 }
 
 export const dummyCoffeeShop: CoffeeShop = {
@@ -22,19 +37,60 @@ export const dummyCoffeeShop: CoffeeShop = {
   rating: 5,
   openHours: "SENIN–MINGGU JAM 10.00–02.00",
   images: [
-    "/img/renjana1.jpg",
-    "/img/renjana2.jpg",
-    "/img/renjana3.jpg",
-    "/img/renjana4.jpg",
+    "/img/renjana/1.jpg",
+    "/img/renjana/2.jpg",
+    "/img/renjana/3.jpg",
+    "/img/renjana/4.jpg",
   ],
   menus: [
-    { id: 1, name: "Americano", price: 18000, image: "/img/americano.png", category: "Classic Coffee" },
-    { id: 2, name: "Long Black", price: 18000, image: "/img/longblack.png", category: "Classic Coffee" },
-    { id: 3, name: "Mocha", price: 18000, image: "/img/mocha.png", category: "Classic Coffee" },
-    { id: 4, name: "Brulle Latte", price: 18000, image: "/img/brulle.png", category: "Espresso Based" },
-    { id: 5, name: "Flavored Coffee", price: 18000, image: "/img/flavored.png", category: "Espresso Based" },
-    { id: 6, name: "Maracuja", price: 18000, image: "/img/maracuja.png", category: "Coffee Mocktail" },
-    { id: 7, name: "Ubi Ungu", price: 18000, image: "/img/ubiungu.png", category: "Milk Based" },
-    { id: 8, name: "Yuzu Tea", price: 18000, image: "/img/yuzu.png", category: "Tea Based" },
+    {
+      category: "Classic Coffee",
+      items: [
+        { id: "1", name: "Americano", price: 18000, image: "/menu/americano.png" },
+        { id: "2", name: "Long Black", price: 18000, image: "/menu/longblack.png" },
+        { id: "3", name: "Mocha", price: 18000, image: "/menu/kopsu.png" },
+      ],
+    },
+    {
+      category: "Espresso Based",
+      items: [
+        { id: "4", name: "Brulle Latte", price: 18000, image: "/menu/latte.png" },
+        { id: "5", name: "Flavored Coffee", price: 18000, image: "/menu/pistacio.png" },
+      ],
+    },
+    {
+      category: "Coffee Mocktail",
+      items: [
+        { id: "6", name: "Maracuja", price: 18000, image: "/menu/tropical.png" },
+      ],
+    },
+  ],
+  liveComments: [
+    {
+      user: "Rani",
+      text: "Lagi sepii nii coffeeshop nya!",
+      image: "/img/renjana/3.jpg",
+    },
+    {
+      user: "Bimo",
+      text: "Sepii sinii ngopi☕",
+      image: "/img/renjana/2.jpg",
+    },
+  ],
+  reviews: [
+    {
+      id: 1,
+      author: "Ziven",
+      rating: 5,
+      comment: "Tempatnya cozy banget dan kopinya enak!",
+      date: "2025-10-10",
+    },
+    {
+      id: 2,
+      author: "Rani",
+      rating: 4,
+      comment: "Pelayanan cepat, tapi tempat parkir agak sempit.",
+      date: "2025-10-12",
+    },
   ],
 };

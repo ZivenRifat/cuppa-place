@@ -15,8 +15,6 @@ export default function Navbar() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pathname = usePathname();
 
-  // ⬇️ Sebelumnya: pathname.startsWith("/coffee-shop")
-  //     Link kamu:  "/pengguna/coffeeshop"
   const isCoffeeShopPage = pathname.startsWith("/pengguna/coffeeshop");
 
   useEffect(() => {
