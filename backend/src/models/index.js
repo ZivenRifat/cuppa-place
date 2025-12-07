@@ -74,6 +74,8 @@ if (User && Cafe && Favorite) {
     otherKey: 'user_id',
     as: 'fans',
   });
+  Favorite.belongsTo(Cafe, { foreignKey: 'cafe_id', as: 'cafe' });
+  Favorite.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 }
 
 module.exports = db;

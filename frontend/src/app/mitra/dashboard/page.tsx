@@ -24,7 +24,7 @@ export default function MitraDashboard() {
   const [err, setErr] = useState<string | null>(null);
   const [fetching, setFetching] = useState<boolean>(false);
 
-  // Guard role: hanya mitra/admin
+  // Guard role: hanya mitra & admin
   useEffect(() => {
     if (!loading) {
       if (!user) return; // biarkan middleware/route login yang handle
@@ -34,13 +34,14 @@ export default function MitraDashboard() {
     }
   }, [loading, user]);
 
+  // Fetch data dashboard
   useEffect(() => {
     if (!user) return;
     const run = async () => {
       setFetching(true);
       setErr(null);
       try {
-        const res = await apiMitraDashboard(); // butuh token (sudah di-handle di api.ts)
+        const res = await apiMitraDashboard();
         setData(res);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Gagal memuat dashboard";
@@ -52,61 +53,51 @@ export default function MitraDashboard() {
     void run();
   }, [user]);
 
-  // Fallback chart jika API belum ada
+  // Chart visitors: tidak ada dummy, kalau kosong ya grafis kosong
   const chartData = useMemo(
-    () =>
-      data?.visitors ?? [
-        { name: "Senin", value: 30 },
-        { name: "Selasa", value: 50 },
-        { name: "Rabu", value: 35 },
-        { name: "Kamis", value: 55 },
-        { name: "Jumat", value: 45 },
-        { name: "Sabtu", value: 60 },
-        { name: "Minggu", value: 60 },
-      ],
+    () => data?.visitors ?? [],
     [data?.visitors]
   );
 
+  // Cards summary: semua fallback ke 0 (bukan angka fiktif)
   const cards = useMemo(() => {
-    const daily = data?.cards.daily_sales ?? 120;
-    const monthly = data?.cards.monthly_sales ?? 450;
-    const rating = data?.cards.avg_rating ?? 4.5;
-    const reviews = data?.cards.review_count ?? 320;
-    const favorites = data?.cards.favorites_count ?? 89;
+    const daily = data?.cards.daily_sales ?? 0;
+    const monthly = data?.cards.monthly_sales ?? 0;
+    const rating = data?.cards.avg_rating ?? 0;
+    const reviews = data?.cards.review_count ?? 0;
+    const favorites = data?.cards.favorites_count ?? 0;
 
     return [
-      { title: "Total Penjualan Harian", value: daily.toLocaleString() },
-      { title: "Total Penjualan Bulanan", value: monthly.toLocaleString() },
+      { title: "Total Penjualan Harian", value: daily.toLocaleString("id-ID") },
+      { title: "Total Penjualan Bulanan", value: monthly.toLocaleString("id-ID") },
       {
         title: "AVG Rating",
         value: (
           <span className="flex items-center gap-2">
-            <Star className="fill-yellow-400 text-yellow-400" size={22} />{" "}
+            <Star className="fill-yellow-400 text-yellow-400" size={22} />
             {Number(rating).toFixed(1)}
           </span>
         ),
       },
-      { title: "Jumlah Ulasan", value: reviews.toLocaleString() },
-      { title: "Jumlah Favorit", value: favorites.toLocaleString() },
+      { title: "Jumlah Ulasan", value: reviews.toLocaleString("id-ID") },
+      { title: "Jumlah Favorit", value: favorites.toLocaleString("id-ID") },
     ];
   }, [data]);
 
   return (
     <>
-      {/* Navbar supaya konsisten area mitra */}
       <div className="relative z-50">
         <Navbar />
       </div>
 
-      <section className="p-8 grid grid-cols-3 gap-6 text-[#271F01] pt-[96px]">
-        {/* Error baris atas jika ada */}
+      <section className="p-8 grid grid-cols-3 gap-6 text-[#271F01] pt-24">
         {err && (
           <div className="col-span-3 bg-red-50 border border-red-200 text-red-900 rounded-xl p-3">
             {err}
           </div>
         )}
 
-        {/* Cards */}
+        {/* Kartu ringkasan */}
         {cards.map((card, i) => (
           <div
             key={i}
@@ -163,7 +154,7 @@ export default function MitraDashboard() {
           </div>
         </div>
 
-        {/* Menu Rekomendasi */}
+        {/* Menu Rekomendasi (tanpa dummy) */}
         <div className="bg-white p-6 rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300">
           <div className="flex justify-between items-center mb-4">
             <p className="font-semibold">Menu Rekomendasi</p>
@@ -175,19 +166,22 @@ export default function MitraDashboard() {
             </Link>
           </div>
 
-          <ul className="space-y-2">
-            {(data?.recommendations?.length
-              ? data.recommendations
-              : ["Kopi Susu Aren", "Matcha Latte", "Americano", "Kopi Susu Irish", "Mocktail Coffee"]
-            ).map((menu, i) => (
-              <li
-                key={`${menu}-${i}`}
-                className="px-3 py-2 bg-[#f5f5f5] rounded-md hover:bg-[#ebe7e3] transition"
-              >
-                {menu}
-              </li>
-            ))}
-          </ul>
+          {(!data?.recommendations || data.recommendations.length === 0) ? (
+            <p className="text-sm text-gray-500">
+              Belum ada menu rekomendasi. Silakan atur di halaman Menu Mitra.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {(data.recommendations ?? []).map((menu, i) => (
+                <li
+                  key={`${menu}-${i}`}
+                  className="px-3 py-2 bg-[#f5f5f5] rounded-md hover:bg-[#ebe7e3] transition"
+                >
+                  {menu}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
     </>

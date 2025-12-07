@@ -1,4 +1,4 @@
-// src/app/login/page.tsx
+// frontend/src/app/login/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,6 +7,7 @@ import Slideshow from "@/components/SlideShow";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { canAccess, routeForRole } from "@/lib/roles";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -15,6 +16,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nextPath, setNextPath] = useState<string>("/");
+
+  // Baca query ?next= dari URL
   useEffect(() => {
     if (typeof window !== "undefined") {
       const qs = new URLSearchParams(window.location.search);
@@ -22,10 +25,17 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Kalau user sudah login, auto-redirect sesuai role
   useEffect(() => {
     if (!loading && user) {
       const preferred = nextPath || "/";
-      const target = canAccess(user.role, preferred) ? preferred : routeForRole(user.role);
+
+      // Hanya user (role: "user") yang boleh mengikuti nextPath,
+      // dan hanya jika path itu memang boleh diakses.
+      const useNext =
+        user.role === "user" && canAccess(user.role, preferred);
+
+      const target = useNext ? preferred : routeForRole(user.role);
       router.replace(target);
     }
   }, [loading, user, router, nextPath]);
@@ -35,7 +45,11 @@ export default function LoginPage() {
     try {
       const u = await login(email.trim(), password);
       const preferred = nextPath || "/";
-      const target = canAccess(u.role, preferred) ? preferred : routeForRole(u.role);
+
+      const useNext =
+        u.role === "user" && canAccess(u.role, preferred);
+
+      const target = useNext ? preferred : routeForRole(u.role);
       router.replace(target);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login gagal";
@@ -45,13 +59,18 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen relative">
+      {/* LEFT PANEL – FORM LOGIN */}
       <div className="w-full md:w-[40%] bg-[#2b210a] flex flex-col justify-center items-center px-10 py-12 text-white z-10 relative">
         <div className="w-full max-w-sm space-y-6">
-          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">Sign In</h1>
+          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">
+            Sign In
+          </h1>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block mb-2 text-sm font-semibold">Email</label>
+              <label className="block mb-2 text-sm font-semibold">
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
@@ -63,7 +82,9 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-semibold">Password</label>
+              <label className="block mb-2 text-sm font-semibold">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
@@ -75,7 +96,9 @@ export default function LoginPage() {
             </div>
 
             <div className="flex justify-between text-sm font-medium">
-              <a href="#" className="hover:underline">Lupa Password</a>
+              <Link href="/lupa-password" className="hover:underline">
+                Lupa Password
+              </Link>
             </div>
 
             <button
@@ -84,13 +107,18 @@ export default function LoginPage() {
             >
               Login
             </button>
+
             <p className="text-center text-sm">
               Tidak punya akun?{" "}
-              <a href="/register" className="font-semibold hover:underline">Buat Akun</a>
+              <Link href="/register" className="font-semibold hover:underline">
+                Buat Akun
+              </Link>
             </p>
           </form>
         </div>
       </div>
+
+      {/* RIGHT PANEL – GAMBAR / BRANDING */}
       <div className="hidden md:flex flex-col justify-center w-[60%] relative overflow-hidden">
         <div className="absolute inset-0">
           <Image
@@ -113,6 +141,8 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+
+      {/* BOTTOM SLIDESHOW */}
       <div className="fixed bottom-0 left-0 w-full bg-[#2b210a]/90 z-50">
         <Slideshow />
       </div>

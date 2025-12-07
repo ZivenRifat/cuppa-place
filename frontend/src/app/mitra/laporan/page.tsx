@@ -13,14 +13,13 @@ import {
 } from "recharts";
 import { useAuth } from "@/lib/auth";
 import { apiMyCafes, apiMitraReport } from "@/lib/api";
-import type { Cafe, ReportSeriesPoint, ReportResp } from "@/types/domain";
+import type { Cafe, ReportSeriesPoint } from "@/types/domain";
 import { routeForRole } from "@/lib/roles";
 
 type Period = "daily" | "monthly" | "yearly";
 
 const COLOR = "#2b210a";
 
-/** fallback data lokal (dipakai kalau backend belum siap) */
 const FALLBACK = {
   daily: [
     { name: "Senin", value: 30 },
@@ -59,7 +58,6 @@ const FALLBACK = {
 export default function LaporanPage() {
   const { user, loading } = useAuth();
 
-  /** guard role, sama seperti halaman mitra lain */
   useEffect(() => {
     if (!loading && user && !["mitra", "admin"].includes(user.role)) {
       window.location.replace(routeForRole(user.role));
@@ -90,11 +88,10 @@ export default function LaporanPage() {
     [yearly]
   );
 
-  /** load daftar cafe milik mitra */
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiMyCafes(); // { data: Cafe[] }
+        const res = await apiMyCafes(); 
         const list = res.data ?? [];
         setCafes(list);
         if (list.length && !cafeId) setCafeId(list[0].id);

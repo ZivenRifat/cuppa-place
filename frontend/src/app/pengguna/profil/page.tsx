@@ -1,6 +1,7 @@
 // frontend/src/app/pengguna/profil/page.tsx
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   Mail,
@@ -16,7 +17,11 @@ import {
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/pengguna/ui/button";
 import { Badge } from "@/components/pengguna/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/pengguna/ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/pengguna/ui/avatar";
 import { useAuth } from "@/lib/auth";
 import { apiMyFavorites } from "@/lib/api";
 import type { Cafe, User } from "@/types/domain";
@@ -104,18 +109,6 @@ export default function UserProfilePage() {
     logout();
     router.replace("/login");
   };
-
-  // (opsional) dummy recent reviews sampai backend punya endpoint user-reviews
-  const reviews = [
-    {
-      id: 1,
-      shopName: "The Roasted Bean",
-      rating: 5,
-      comment:
-        "Amazing atmosphere and the best cappuccino I've had!",
-      date: "2 days ago",
-    },
-  ];
 
   // Saat loading auth, tampilkan skeleton sederhana
   if (loading && !user) {
@@ -280,9 +273,9 @@ export default function UserProfilePage() {
                         <div className="p-4">
                           <h3 className="font-semibold mb-2">{cafe.name}</h3>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-col gap-1">
                               {renderStars(5)}
-                              <span className="text-sm text-gray-500 ml-1">
+                              <span className="text-sm text-gray-500">
                                 {cafe.address ?? "—"}
                               </span>
                             </div>
@@ -290,7 +283,9 @@ export default function UserProfilePage() {
                               size="sm"
                               variant="secondary"
                               onClick={() =>
-                                router.push(`/cafe/${cafe.slug ?? cafe.id}`)
+                                router.push(
+                                  `/pengguna/coffeeshop/${cafe.id}`
+                                )
                               }
                             >
                               View Details
@@ -304,35 +299,16 @@ export default function UserProfilePage() {
               )}
             </div>
 
-            {/* Recent Reviews (placeholder) */}
+            {/* Recent Reviews (placeholder tanpa dummy data) */}
             <div className="bg-white p-5 rounded-xl border border-gray-300/40 shadow-md hover:shadow-lg transition-all duration-300">
               <h3 className="text-xl font-semibold flex items-center gap-2 mb-4">
                 <Star className="h-5 w-5 text-[#271F01]" />
                 Recent Reviews
               </h3>
-              <div className="space-y-4">
-                {reviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="bg-white border border-gray-300/40 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-semibold">{review.shopName}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          {renderStars(review.rating)}
-                          <Badge variant="secondary" className="text-xs">
-                            {review.date}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-gray-600 text-sm leading-relaxed">
-                      {review.comment}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-gray-500">
+                Belum ada riwayat ulasan. Fitur ini akan aktif ketika endpoint
+                riwayat ulasan pengguna tersedia di backend.
+              </p>
             </div>
           </div>
         </div>
@@ -347,7 +323,7 @@ function InfoItem({
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
 }) {

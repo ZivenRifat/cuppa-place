@@ -75,7 +75,7 @@ function AllCafesButton() {
   const router = useRouter();
   return (
     <button
-      onClick={() => router.push("/pengguna/coffeeshop")}
+      onClick={() => router.push("/pengguna/home")}
       className="bg-[#4b3b09] text-white px-8 py-4 rounded-2xl text-lg font-medium hover:bg-[#2b210a] transition"
     >
       Lihat Semua Daftar Coffeeshop
@@ -180,7 +180,7 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
             <p className="text-2xl font-bold tracking-wide text-center">{cafe.name}</p>
 
             <button
-              onClick={() => router.push(`/coffee-shop/${slug}`)}
+              onClick={() => router.push(`/pengguna/coffeeshop/${cafe.id}`)}
               className={`mt-4 bg-white text-[#2b210a] font-semibold px-5 py-2 rounded-full shadow-sm transition-all duration-700 ease-in-out ${
                 hoverImage ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
               } hover:bg-[#4b3b09] hover:text-white`}

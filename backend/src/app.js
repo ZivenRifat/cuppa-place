@@ -8,6 +8,7 @@ const mitraRoutes = require('./routes/mitra.routes');
 const cafeRoutes = require('./routes/cafes.routes');
 const menuRoutes = require('./routes/menus.routes');
 const userRoutes = require('./routes/users.routes');
+const favoriteRoutes = require('./routes/favorites.routes');
 const reviewRoutes = require('./routes/reviews.routes');
 const uploadRoutes = require('./routes/uploads.routes');
 
@@ -23,6 +24,7 @@ app.use('/api/mitra', mitraRoutes);
 app.use('/api/cafes', cafeRoutes);
 app.use('/api/menus', menuRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/users', favoriteRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use((req, res) => res.status(404).json({ message: 'Not Found' }));

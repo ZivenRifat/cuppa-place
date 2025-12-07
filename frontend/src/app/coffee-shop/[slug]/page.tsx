@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ChangeEvent } from "react";
 import { dummyCoffeeShop } from "@/data/dummyCoffeeShop";
 import Image from "next/image";
 import MenuSection from "@/components/MenuSection";
@@ -20,8 +20,8 @@ export default function CoffeeShopPage({ params }: { params: { slug: string } })
   };
 
   // HANDLE UPLOAD GAMBAR
-  const handleImageUpload = (e: any) => {
-    const file = e.target.files[0];
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       const imgUrl = URL.createObjectURL(file);
       setCommentImage(imgUrl);
@@ -172,7 +172,7 @@ export default function CoffeeShopPage({ params }: { params: { slug: string } })
                   className="min-w-[240px] bg-white border border-[#E6E1D6] rounded-2xl p-4 shadow-sm"
                 >
                   <p className="text-sm font-semibold mb-2">@{comment.user}</p>
-                  <p className="text-sm italic text-gray-600 mb-2">"{comment.text}"</p>
+                  <p className="text-sm italic text-gray-600 mb-2">&ldquo;{comment.text}&rdquo;</p>
 
                   <Image
                     src={comment.image}

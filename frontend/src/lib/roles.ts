@@ -2,7 +2,7 @@
 import type { Role } from "@/types/domain";
 export const DEFAULT_ROUTE: Record<Role, string> = {
   user:  "/pengguna/home",
-  mitra: "/mitra/manajemen-cafe/menu",
+  mitra: "/mitra/dashboard",
   admin: "/admin",
 };
 

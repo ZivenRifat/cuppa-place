@@ -47,13 +47,16 @@ export interface MenuItem {
 export interface Review {
   id: number;
   cafe_id: number;
-  user_id: number;
-  rating: 1 | 2 | 3 | 4 | 5;
-  comment?: string | null;
+  user_id?: number | null;
+  rating: number;
+  text?: string | null;      
+  comment?: string | null;   
   photos?: unknown;
-  status: "published" | "pending";
-  author?: Pick<User, "id" | "name">;
   created_at: string;
+  updated_at: string;
+  user?: Pick<User, "id" | "name" | "avatar_url">;
+  cafe?: Pick<Cafe, "id" | "name">;
+  rating_decimal?: number | string | null;
 }
 
 export interface ListReviewsResp {

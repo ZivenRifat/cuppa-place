@@ -108,12 +108,22 @@ async function getMitraDashboard(req, res) {
     };
 
     return res.json({
-      cafes: cafes.map(c => ({
+      cafes: cafes.map((c) => ({
         id: c.id,
         name: c.name,
         address: c.address,
       })),
-      metrics,
+      cards: {
+        daily_sales: metrics.daily_sales,
+        monthly_sales: metrics.monthly_sales,
+        avg_rating: metrics.avg_rating,
+        review_count: metrics.review_count,
+        favorites_count: metrics.favorites,
+      },
+      visitors: metrics.series_daily,
+      recommendations: cafes.length
+        ? cafes.map((c) => `Promosikan ${c.name} dengan diskon spesial minggu ini`)
+        : ['Belum ada data cukup, mulai kumpulkan transaksi dan ulasan.'],
     });
   } catch (err) {
     console.error('getMitraDashboard error:', err);

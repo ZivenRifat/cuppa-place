@@ -67,3 +67,40 @@ exports.menu = async (req, res, next) => {
     res.json({ data: rows });
   } catch (e) { next(e); }
 };
+
+exports.reports = async (req, res, next) => {
+  try {
+    const { period = 'daily' } = req.query;
+
+    let series;
+    if (period === 'monthly') {
+      series = [
+        { name: 'Jan', value: 120 },
+        { name: 'Feb', value: 140 },
+        { name: 'Mar', value: 160 },
+        { name: 'Apr', value: 180 },
+      ];
+    } else if (period === 'yearly') {
+      series = [
+        { name: '2022', value: 1200 },
+        { name: '2023', value: 1500 },
+        { name: '2024', value: 1800 },
+      ];
+    } else {
+      series = [
+        { name: 'Senin', value: 30 },
+        { name: 'Selasa', value: 45 },
+        { name: 'Rabu', value: 35 },
+        { name: 'Kamis', value: 50 },
+        { name: 'Jumat', value: 60 },
+        { name: 'Sabtu', value: 70 },
+        { name: 'Minggu', value: 55 },
+      ];
+    }
+
+    const total = series.reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+    res.json({ series, total });
+  } catch (e) {
+    next(e);
+  }
+};

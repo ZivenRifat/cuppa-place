@@ -1,3 +1,5 @@
+// frontend/src/lib/api.ts
+
 import type {
   AuthResp,
   MeResp,
@@ -7,11 +9,8 @@ import type {
   MenuItem,
   Review,
 } from "@/types/domain";
-
-// ===== Base URL =====
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
 
-// ===== Token helpers (localStorage; aman untuk SSR karena guarded typeof window) =====
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("cuppa_token");
@@ -26,8 +25,6 @@ export function setToken(token: string | null) {
 export function clearToken() {
   setToken(null);
 }
-
-// ===== HTTP core =====
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOpts = RequestInit & {
@@ -38,8 +35,6 @@ type RequestOpts = RequestInit & {
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 
 const url = `${API_BASE}${path}`;
-
-  // AbortController untuk timeout optional
   const ac = typeof AbortController !== "undefined" ? new AbortController() : undefined;
   let timeout: NodeJS.Timeout | undefined;
   if (opts.timeoutMs && ac) {
@@ -50,7 +45,6 @@ const url = `${API_BASE}${path}`;
     ...(opts.headers as Record<string, string>),
   };
 
-  // default Content-Type untuk body JSON
   if (opts.body && !(opts.body instanceof FormData)) {
     headers["Content-Type"] = headers["Content-Type"] || "application/json";
   }
@@ -73,13 +67,11 @@ const url = `${API_BASE}${path}`;
 
   if (timeout) clearTimeout(timeout);
 
-  // auto-clear token jika 401
   if (res.status === 401) {
     clearToken();
   }
 
   if (!res.ok) {
-    // coba ambil pesan error dari JSON atau text
     const ct = res.headers.get("content-type") || "";
     let msg = `HTTP ${res.status}`;
     try {
@@ -102,7 +94,6 @@ const url = `${API_BASE}${path}`;
     throw new Error(msg);
   }
 
-  // 204 No Content → undefined as any
   if (res.status === 204) return undefined as unknown as T;
 
   // parse JSON hanya jika content-type json
@@ -317,6 +308,17 @@ export async function apiCafeReviews(
     { auth: true }
   );
 }
+export async function apiCreateReview(
+  cafeId: number | string,
+  payload: { rating: number; text?: string }
+) {
+  return request<Review>(`/api/cafes/${cafeId}/reviews`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(payload),
+  });
+}
+
 
 export async function apiCafeMenu(id: number | string) {
   // sebagian backend return {data:[...]}, sebagian langsung array.
@@ -494,4 +496,20 @@ export async function apiUploadCafeMedia(
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("Upload gagal");
+}
+
+// =================== FORGOT & RESET PASSWORD ===================
+
+export async function apiForgotPassword(email: string) {
+  return request<{ message: string }>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiResetPassword(token: string, password: string) {
+  return request<{ message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
 }

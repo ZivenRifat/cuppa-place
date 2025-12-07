@@ -10,5 +10,8 @@ router.get('/me', authRequired, ctrl.me);
 router.post('/mitra/register', ctrl.registerMitra);
 router.post('/send-otp', otp.send);
 router.post('/verify-otp', otp.verify);
+router.post('/forgot-password', ctrl.forgotPassword);
+router.post('/reset-password', ctrl.resetPassword);
+router.post('/logout', ctrl.logout);
 
 module.exports = router;
