@@ -36,7 +36,7 @@ export default function TentangKamiPage() {
           {/* Teks deskripsi */}
           <div>
             <h2 className="text-3xl md:text-4xl font-extrabold mb-4">
-              The first CuppaPlace was our own
+              CuppaPlace
             </h2>
             <p className="leading-relaxed text-lg">
               CuppaPlace lahir dari kebiasaan kami yang suka ngopi dan

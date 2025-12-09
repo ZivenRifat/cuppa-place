@@ -107,7 +107,7 @@ export default function UserProfilePage() {
 
   const onLogout = () => {
     logout();
-    router.replace("/login");
+    router.replace("/");
   };
 
   // Saat loading auth, tampilkan skeleton sederhana

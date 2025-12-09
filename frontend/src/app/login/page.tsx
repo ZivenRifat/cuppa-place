@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { canAccess, routeForRole } from "@/lib/roles";
 import Link from "next/link";
+import Cookies from "js-cookie";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -17,60 +18,63 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [nextPath, setNextPath] = useState<string>("/");
 
-  // Baca query ?next= dari URL
+  // Baca query ?next=
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const qs = new URLSearchParams(window.location.search);
-      setNextPath(qs.get("next") || "/");
-    }
+    const qs = new URLSearchParams(window.location.search);
+    setNextPath(qs.get("next") || "/");
   }, []);
 
-  // Kalau user sudah login, auto-redirect sesuai role
+  // Auto redirect bila sudah login
   useEffect(() => {
     if (!loading && user) {
       const preferred = nextPath || "/";
 
-      // Hanya user (role: "user") yang boleh mengikuti nextPath,
-      // dan hanya jika path itu memang boleh diakses.
-      const useNext =
-        user.role === "user" && canAccess(user.role, preferred);
+      const allowedPath =
+        user.role === "user" && canAccess(user.role, preferred)
+          ? preferred
+          : routeForRole(user.role);
 
-      const target = useNext ? preferred : routeForRole(user.role);
-      router.replace(target);
+      router.replace(allowedPath);
     }
   }, [loading, user, router, nextPath]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
-      const u = await login(email.trim(), password);
+      const loggedUser = await login(email.trim(), password);
+
+      Cookies.set("token", loggedUser.token, {
+        expires: 7,
+        path: "/",
+        sameSite: "Lax",
+      });
+
+      window.dispatchEvent(new Event("auth-update"));
+
       const preferred = nextPath || "/";
 
-      const useNext =
-        u.role === "user" && canAccess(u.role, preferred);
+      const allowedPath =
+        loggedUser.role === "user" && canAccess(loggedUser.role, preferred)
+          ? preferred
+          : routeForRole(loggedUser.role);
 
-      const target = useNext ? preferred : routeForRole(u.role);
-      router.replace(target);
+      router.replace(allowedPath);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Login gagal";
-      alert(msg);
+      alert(err instanceof Error ? err.message : "Login gagal");
     }
   };
 
   return (
     <div className="flex min-h-screen relative">
-      {/* LEFT PANEL – FORM LOGIN */}
+      {/* LEFT – LOGIN FORM */}
       <div className="w-full md:w-[40%] bg-[#2b210a] flex flex-col justify-center items-center px-10 py-12 text-white z-10 relative">
         <div className="w-full max-w-sm space-y-6">
-          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">
-            Sign In
-          </h1>
+          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">Sign In</h1>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block mb-2 text-sm font-semibold">
-                Email
-              </label>
+              <label className="block mb-2 text-sm font-semibold">Email</label>
               <input
                 type="email"
                 value={email}
@@ -82,9 +86,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-semibold">
-                Password
-              </label>
+              <label className="block mb-2 text-sm font-semibold">Password</label>
               <input
                 type="password"
                 value={password}
@@ -118,7 +120,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT PANEL – GAMBAR / BRANDING */}
+      {/* RIGHT – BRAND PANEL */}
       <div className="hidden md:flex flex-col justify-center w-[60%] relative overflow-hidden">
         <div className="absolute inset-0">
           <Image
@@ -136,13 +138,12 @@ export default function LoginPage() {
             Hello, <br /> Selamat Datang!
           </h2>
           <p className="text-white text-base max-w-md drop-shadow-md">
-            CuppaPlace menghubungkan pecinta kopi dengan coffeeshop terbaik yang
-            telah bermitra.
+            CuppaPlace menghubungkan pecinta kopi dengan coffeeshop terbaik yang bermitra.
           </p>
         </div>
       </div>
 
-      {/* BOTTOM SLIDESHOW */}
+      {/* SLIDESHOW */}
       <div className="fixed bottom-0 left-0 w-full bg-[#2b210a]/90 z-50">
         <Slideshow />
       </div>

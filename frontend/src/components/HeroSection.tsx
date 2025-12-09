@@ -50,7 +50,8 @@ const HeroSection: React.FC = () => {
         </h1>
 
         <p className="mt-6 text-lg text-gray-200 max-w-md">
-          CuppaPlace menghubungkan pecinta kopi dengan coffeeshop terbaik yang telah bermitra.
+          CuppaPlace menghubungkan pecinta kopi dengan coffeeshop terbaik yang
+          telah bermitra.
         </p>
 
         <div className="mt-8 flex gap-6">
@@ -62,12 +63,15 @@ const HeroSection: React.FC = () => {
             Gabung Mitra
           </Link>
 
-          <button className="text-2xl ml-5 flex items-center gap-2 text-white">
+          <Link
+            href="/pengguna/listCoffeeShop"
+            className="text-2xl ml-5 flex items-center gap-2 text-white"
+          >
             Lihat Coffeeshop
             <span className="ml-2 w-8 h-8 bg-white text-[#271F01] rounded-full flex items-center justify-center hover:bg-[#271F01] hover:text-white transition">
               <ArrowRight className="w-6 h-6" />
             </span>
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -78,7 +82,9 @@ const HeroSection: React.FC = () => {
             <div
               key={index}
               className={`flex flex-col gap-0 ${
-                index % 2 === 0 ? "animate-scroll-up-loop" : "animate-scroll-down-loop"
+                index % 2 === 0
+                  ? "animate-scroll-up-loop"
+                  : "animate-scroll-down-loop"
               }`}
             >
               {[...col.images, ...col.images].map((src, i) => (
