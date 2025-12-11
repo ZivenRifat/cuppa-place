@@ -6,7 +6,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiListCafes } from "@/lib/api";
+import { apiListCafes, API_BASE } from "@/lib/api";
 import type { Cafe } from "@/types/domain";
 
 export default function CafeSection() {
@@ -72,14 +72,48 @@ function AllCafesButton() {
   );
 }
 
+/**
+ * Normalisasi URL gambar cafe:
+ * - Kalau sudah http/https → pakai apa adanya
+ * - Kalau relatif → sambung ke API_BASE (http://localhost:4000 + /uploads/...)
+ * - Kalau API_BASE kosong → treat sebagai path publik Next (/something.jpg)
+ */
+function resolveCafeImage(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const src = raw.trim();
+  if (!src) return null;
+
+  // sudah absolute URL
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    return src;
+  }
+
+  // kalau kita punya API_BASE, sambungkan
+  if (API_BASE) {
+    const base = API_BASE.replace(/\/+$/, "");
+    const path = src.startsWith("/") ? src : `/${src}`;
+    return `${base}${path}`;
+  }
+
+  // fallback: treat sebagai public path
+  return src.startsWith("/") ? src : `/${src}`;
+}
+
 function CafeCard({ cafe }: { cafe: Cafe }) {
   const router = useRouter();
 
   const baseImages: string[] = [];
-  if (cafe.cover_url) baseImages.push(cafe.cover_url);
+  const cover = resolveCafeImage(
+    (cafe as { cover_url?: string; photo_url?: string }).cover_url ||
+    (cafe as { cover_url?: string; photo_url?: string }).photo_url
+  );
 
-  const images =
-    baseImages.length > 0 ? baseImages : ["/img/placeholder/cafe.jpg"];
+  if (cover) baseImages.push(cover);
+
+  // fallback ke gambar lokal yang PASTI ada
+  const placeholder = "/img/login/LoginPage.jpg";
+
+  const images = baseImages.length > 0 ? baseImages : [placeholder];
   const imagesExtended = [...images, images[0]]; // agar loop mulus seperti versi lama
 
   const [idx, setIdx] = useState(0);
@@ -190,7 +224,7 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
           {/* Hover Background */}
           <div className="w-80 h-10 absolute inset-0 rounded-xl bg-transparent group-hover/location:bg-[#271F01] transition-all duration-500"></div>
 
-          {/* Wrapper konten (DITAMBAHKAN py-1 supaya tidak mepet) */}
+          {/* Wrapper konten */}
           <div className="flex items-center justify-center gap-2 z-10 py-1">
             <MapPin className="w-8 h-8 text-[#4b3b09] transition-all duration-500 group-hover/location:translate-x-[-24px] group-hover/location:text-white" />
 
@@ -222,8 +256,8 @@ function SkeletonCard() {
 }
 
 function getMapsLink(cafe: Cafe): string {
-  const lat = toNum(cafe.lat);
-  const lng = toNum(cafe.lng);
+  const lat = toNum(cafe.lat as string | number | null | undefined);
+  const lng = toNum(cafe.lng as string | number | null | undefined);
   if (lat !== null && lng !== null) {
     return `https://www.google.com/maps?q=${lat},${lng}`;
   }

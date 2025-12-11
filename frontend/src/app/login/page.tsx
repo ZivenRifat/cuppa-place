@@ -44,11 +44,16 @@ export default function LoginPage() {
     try {
       const loggedUser = await login(email.trim(), password);
 
-      Cookies.set("token", loggedUser.token, {
-        expires: 7,
-        path: "/",
-        sameSite: "Lax",
-      });
+      // Get token from localStorage or session storage where login() stores it
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+
+      if (token) {
+        Cookies.set("token", token, {
+          expires: 7,
+          path: "/",
+          sameSite: "Lax",
+        });
+      }
 
       window.dispatchEvent(new Event("auth-update"));
 
