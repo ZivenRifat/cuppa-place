@@ -1,28 +1,31 @@
-const router = require('express').Router();
-const path = require('path');
-const multer = require('multer');
-const crypto = require('crypto');
-const { authRequired, roleRequired } = require('../middlewares/auth');
-const ctrl = require('../controllers/upload.controller');
+const router = require("express").Router();
+const path = require("path");
+const multer = require("multer");
+const crypto = require("crypto");
+const { authRequired, roleRequired } = require("../middlewares/auth");
+const ctrl = require("../controllers/upload.controller");
 
-const UP_ROOT = path.resolve('uploads');
+const UP_ROOT = path.resolve("uploads");
 ctrl.ensureUploadRoot(UP_ROOT);
 
 function subdir(dir) {
   return (req, file, cb) => {
-    cb(null, path.join('uploads', dir));
+    cb(null, path.join("uploads", dir)); // -> uploads/<dir>
   };
 }
+
 function fileFilter(req, file, cb) {
   const ok = /^image\/(png|jpe?g|webp|gif|svg\+xml)$/i.test(file.mimetype);
-  if (!ok) return cb(new Error('Only image files allowed'));
+  if (!ok) return cb(new Error("Only image files allowed"));
   cb(null, true);
 }
+
 function filename(req, file, cb) {
-  const ext = path.extname(file.originalname || '').toLowerCase();
-  const name = crypto.randomBytes(16).toString('hex');
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const name = crypto.randomBytes(16).toString("hex");
   cb(null, `${name}${ext}`);
 }
+
 function createMulter(dir) {
   return multer({
     storage: multer.diskStorage({
@@ -34,10 +37,51 @@ function createMulter(dir) {
   });
 }
 
-const upLogo = createMulter('logos');
-const upGallery = createMulter('gallery');
+const upLogo = createMulter("logos");
+const upGallery = createMulter("gallery");
+const upCover = createMulter("covers");
+const upTemp = createMulter("tmp");
 
-router.post('/logo', authRequired, roleRequired('mitra','admin'), upLogo.single('file'), ctrl.afterSingle);
-router.post('/gallery', authRequired, roleRequired('mitra','admin'), upGallery.array('files', 10), ctrl.afterMultiple);
+/**
+ * Untuk kompatibilitas dengan frontend (apiUploadTempImage):
+ * POST /api/uploads/image  (field: file)
+ */
+router.post(
+  "/image",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  upTemp.single("file"),
+  ctrl.afterSingle
+);
+
+/**
+ * Tetap ada endpoint lama:
+ * POST /api/uploads/logo    (field: file)
+ * POST /api/uploads/cover   (field: file)
+ * POST /api/uploads/gallery (field: files[])
+ */
+router.post(
+  "/logo",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  upLogo.single("file"),
+  ctrl.afterSingle
+);
+
+router.post(
+  "/cover",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  upCover.single("file"),
+  ctrl.afterSingle
+);
+
+router.post(
+  "/gallery",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  upGallery.array("files", 10),
+  ctrl.afterMultiple
+);
 
 module.exports = router;

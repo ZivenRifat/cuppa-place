@@ -1,14 +1,41 @@
-const { Op } = require('sequelize');
-const { Cafe, Menu } = require('../models');
+const { Op } = require("sequelize");
+const { Cafe, Menu } = require("../models");
 
 function haversine(lat1, lon1, lat2, lon2) {
-  function toRad(v){ return (v * Math.PI) / 180; }
+  function toRad(v) {
+    return (v * Math.PI) / 180;
+  }
   const R = 6371000;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+function baseUrl(req) {
+  const envBase = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+  if (envBase) return envBase;
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function toPublicUrl(req, p) {
+  if (!p) return null;
+  if (/^https?:\/\//i.test(p)) return p;
+  const path = p.startsWith("/") ? p : `/${p}`;
+  return `${baseUrl(req)}${path}`;
+}
+
+function normalizeCafe(req, cafeJson) {
+  return {
+    ...cafeJson,
+    cover_url: cafeJson.cover_url ? toPublicUrl(req, cafeJson.cover_url) : null,
+    logo_url: cafeJson.logo_url ? toPublicUrl(req, cafeJson.logo_url) : null,
+  };
 }
 
 exports.list = async (req, res, next) => {
@@ -21,80 +48,162 @@ exports.list = async (req, res, next) => {
         { address: { [Op.like]: `%${search}%` } },
       ];
     }
-    const rows = await Cafe.findAll({ where, limit: Number(limit), offset: Number(offset), order: [['id','ASC']] });
-    let data = rows.map(r => r.toJSON());
 
-    if (lat && lng && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+    const rows = await Cafe.findAll({
+      where,
+      limit: Number(limit),
+      offset: Number(offset),
+      order: [["id", "ASC"]],
+    });
+
+    let data = rows.map((r) => normalizeCafe(req, r.toJSON()));
+
+    if (
+      lat &&
+      lng &&
+      Number.isFinite(Number(lat)) &&
+      Number.isFinite(Number(lng))
+    ) {
       const R = Number(radius) || 0;
-      data = data.map(d => {
+      data = data.map((d) => {
         const has = d.lat != null && d.lng != null;
-        const dist = has ? haversine(Number(lat), Number(lng), Number(d.lat), Number(d.lng)) : null;
+        const dist = has
+          ? haversine(
+              Number(lat),
+              Number(lng),
+              Number(d.lat),
+              Number(d.lng)
+            )
+          : null;
         return { ...d, distance_m: dist };
       });
-      if (R > 0) data = data.filter(d => d.distance_m != null && d.distance_m <= R);
-      data.sort((a,b) => (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity));
+      if (R > 0)
+        data = data.filter((d) => d.distance_m != null && d.distance_m <= R);
+      data.sort((a, b) => (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity));
     }
 
     res.json({ data });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.detail = async (req, res, next) => {
   try {
     const cafe = await Cafe.findByPk(req.params.id);
-    if (!cafe) return res.status(404).json({ message: 'Cafe not found' });
-    res.json(cafe);
-  } catch (e) { next(e); }
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+    res.json(normalizeCafe(req, cafe.toJSON()));
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.update = async (req, res, next) => {
   try {
     const cafe = await Cafe.findByPk(req.params.id);
-    if (!cafe) return res.status(404).json({ message: 'Cafe not found' });
-    if (req.user.role !== 'admin' && cafe.owner_id !== req.user.id) {
-      return res.status(403).json({ message: 'Forbidden' });
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
     }
-    const allowed = ['name','description','address','lat','lng','instagram','opening_hours','cover_url','logo_url','phone'];
-    for (const k of allowed) if (req.body[k] !== undefined) cafe[k] = req.body[k];
+
+    const allowed = [
+      "name",
+      "description",
+      "address",
+      "lat",
+      "lng",
+      "instagram",
+      "opening_hours",
+      "cover_url",
+      "logo_url",
+      "phone",
+    ];
+
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) cafe[k] = req.body[k];
+    }
+
     await cafe.save();
-    res.json(cafe);
-  } catch (e) { next(e); }
+    res.json(normalizeCafe(req, cafe.toJSON()));
+  } catch (e) {
+    next(e);
+  }
+};
+
+// ✅ NEW: upload cover/logo lalu update cafe.cover_url/logo_url
+exports.updateMedia = async (req, res, next) => {
+  try {
+    const cafe = await Cafe.findByPk(req.params.id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const files = req.files || {};
+    const coverFile = files.cover?.[0];
+    const logoFile = files.logo?.[0];
+
+    if (!coverFile && !logoFile) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    if (coverFile) {
+      const rel = coverFile.path.replace(/\\/g, "/"); // uploads/covers/xxx.jpg
+      cafe.cover_url = `/${rel}`; // simpan relative path ke DB
+    }
+    if (logoFile) {
+      const rel = logoFile.path.replace(/\\/g, "/"); // uploads/logos/yyy.png
+      cafe.logo_url = `/${rel}`;
+    }
+
+    await cafe.save();
+    res.json(normalizeCafe(req, cafe.toJSON()));
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.menu = async (req, res, next) => {
   try {
-    const rows = await Menu.findAll({ where: { cafe_id: req.params.id }, order: [['id','ASC']] });
+    const rows = await Menu.findAll({
+      where: { cafe_id: req.params.id },
+      order: [["id", "ASC"]],
+    });
     res.json({ data: rows });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.reports = async (req, res, next) => {
   try {
-    const { period = 'daily' } = req.query;
+    const { period = "daily" } = req.query;
 
     let series;
-    if (period === 'monthly') {
+    if (period === "monthly") {
       series = [
-        { name: 'Jan', value: 120 },
-        { name: 'Feb', value: 140 },
-        { name: 'Mar', value: 160 },
-        { name: 'Apr', value: 180 },
+        { name: "Jan", value: 120 },
+        { name: "Feb", value: 140 },
+        { name: "Mar", value: 160 },
+        { name: "Apr", value: 180 },
       ];
-    } else if (period === 'yearly') {
+    } else if (period === "yearly") {
       series = [
-        { name: '2022', value: 1200 },
-        { name: '2023', value: 1500 },
-        { name: '2024', value: 1800 },
+        { name: "2022", value: 1200 },
+        { name: "2023", value: 1500 },
+        { name: "2024", value: 1800 },
       ];
     } else {
       series = [
-        { name: 'Senin', value: 30 },
-        { name: 'Selasa', value: 45 },
-        { name: 'Rabu', value: 35 },
-        { name: 'Kamis', value: 50 },
-        { name: 'Jumat', value: 60 },
-        { name: 'Sabtu', value: 70 },
-        { name: 'Minggu', value: 55 },
+        { name: "Senin", value: 30 },
+        { name: "Selasa", value: 45 },
+        { name: "Rabu", value: 35 },
+        { name: "Kamis", value: 50 },
+        { name: "Jumat", value: 60 },
+        { name: "Sabtu", value: 70 },
+        { name: "Minggu", value: 55 },
       ];
     }
 
