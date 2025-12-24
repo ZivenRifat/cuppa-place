@@ -3,7 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User } from "@/types/domain";
-import { apiLogin, apiMe, clearToken, setToken } from "./api";
+import { apiLogin, apiMe} from "./api";
 
 type AuthContextValue = {
   user: User | null;
@@ -41,13 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const r = await apiLogin({ email, password });
-    setToken(r.token);
     setUser(r.user);
     return r.user;
   }, []);
 
   const logout = useCallback(() => {
-    clearToken();
     setUser(null);
   }, []);
 

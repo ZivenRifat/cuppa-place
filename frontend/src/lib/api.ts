@@ -9,34 +9,25 @@ import type {
   MenuItem,
   Review,
 } from "@/types/domain";
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("cuppa_token");
-}
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(
+  /\/+$/,
+  ""
+);
 
-export function setToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) localStorage.setItem("cuppa_token", token);
-  else localStorage.removeItem("cuppa_token");
-}
-
-export function clearToken() {
-  setToken(null);
-}
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOpts = RequestInit & {
-  auth?: boolean;
   timeoutMs?: number;
 };
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
+  const url = `${API_BASE}${path}`;
 
-const url = `${API_BASE}${path}`;
-  const ac = typeof AbortController !== "undefined" ? new AbortController() : undefined;
+  const ac =
+    typeof AbortController !== "undefined" ? new AbortController() : undefined;
   let timeout: NodeJS.Timeout | undefined;
+
   if (opts.timeoutMs && ac) {
     timeout = setTimeout(() => ac.abort(), opts.timeoutMs);
   }
@@ -46,12 +37,7 @@ const url = `${API_BASE}${path}`;
   };
 
   if (opts.body && !(opts.body instanceof FormData)) {
-    headers["Content-Type"] = headers["Content-Type"] || "application/json";
-  }
-
-  if (opts.auth) {
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    headers["Content-Type"] = "application/json";
   }
 
   const res = await fetch(url, {
@@ -59,67 +45,51 @@ const url = `${API_BASE}${path}`;
     headers,
     body: opts.body as BodyInit | null | undefined,
     signal: ac?.signal,
-    credentials: "omit",
-  }).catch((e) => {
+    credentials: "include",
+  }).finally(() => {
     if (timeout) clearTimeout(timeout);
-    throw e;
   });
 
-  if (timeout) clearTimeout(timeout);
-
   if (res.status === 401) {
-    clearToken();
+    throw new Error("Unauthorized");
   }
 
   if (!res.ok) {
     const ct = res.headers.get("content-type") || "";
     let msg = `HTTP ${res.status}`;
+
     try {
       if (ct.includes("application/json")) {
-        const j = await res.json().catch(() => ({} as Record<string, unknown>));
-        if (typeof j === "object" && j !== null) {
-          const obj = j as Record<string, unknown>;
-          if (typeof obj.message === "string") msg = obj.message;
-          else if (typeof obj.error === "string") msg = obj.error;
-        } else if (typeof j === "string") {
-          msg = j;
-        }
+        const j = await res.json();
+        msg = j?.message || j?.error || msg;
       } else {
         const t = await res.text();
         if (t) msg = t;
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
+
     throw new Error(msg);
   }
 
-  if (res.status === 204) return undefined as unknown as T;
+  if (res.status === 204) return undefined as T;
 
-  // parse JSON hanya jika content-type json
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) {
     return (await res.json()) as T;
   }
-  // kalau bukan JSON, kembalikan text sebagai apapun (jarang dipakai di API JSON)
-  const text = await res.text();
-  return text as unknown as T;
+
+  return (await res.text()) as unknown as T;
 }
 
-/** Multipart helper (FormData). Jangan set Content-Type manual—browser yang set boundary. */
+/** Multipart helper */
 async function requestMultipart<T>(
   path: string,
   form: FormData,
-  opts: Omit<RequestOpts, "headers" | "body"> & { headers?: Record<string, string> } = {}
+  opts: Omit<RequestOpts, "headers" | "body"> = {}
 ): Promise<T> {
-  const { headers = {}, ...rest } = opts;
-  // Hapus Content-Type agar boundary otomatis
-  const safeHeaders = { ...headers };
-  delete (safeHeaders as Record<string, string>)["Content-Type"];
   return request<T>(path, {
-    ...rest,
-    method: rest.method ?? "POST",
-    headers: safeHeaders,
+    ...opts,
+    method: opts.method ?? "POST",
     body: form,
   });
 }
@@ -146,50 +116,29 @@ export async function apiRegister(payload: {
 }
 
 export async function apiMe() {
-  return request<MeResp>(`/api/auth/me`, { auth: true });
+  return request<MeResp>(`/api/auth/me`);
 }
 
-/** Opsional—kalau backend-mu menyediakan endpoint logout */
 export async function apiLogout() {
-  try {
-    await request<void>(`/api/auth/logout`, { method: "POST", auth: true });
-  } finally {
-    clearToken();
-  }
+  return request(`/api/auth/logout`, { method: "POST" });
 }
 
-// =================== OTP (untuk Step Verifikasi) ===================
+// =================== OTP ===================
 
-/** Kirim OTP ke email.
- *  Menerima string email atau object { email, reason }.
- *  Akan mengirim ke /api/auth/send-otp lalu fallback ke /api/otp/send bila 404.
- */
-export async function apiSendOtp(payload: { email: string; reason?: string } | string) {
+export async function apiSendOtp(
+  payload: { email: string; reason?: string } | string
+) {
   const body =
     typeof payload === "string"
       ? { email: payload, reason: "register" }
       : { email: payload.email, reason: payload.reason ?? "register" };
 
-  try {
-    return await request<{ ok: true }>(`/api/auth/send-otp`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("HTTP 404") || /not\s*found/i.test(msg)) {
-      return request<{ ok: true }>(`/api/otp/send`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-    }
-    throw e;
-  }
+  return request(`/api/auth/send-otp`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
-/** Verifikasi OTP.
- *  Terima berbagai bentuk (code|otp, reason|purpose|kind) dan normalisasi jadi { email, code, reason }.
- */
 export async function apiVerifyOtp(payload: {
   email: string;
   code?: string;
@@ -200,38 +149,18 @@ export async function apiVerifyOtp(payload: {
 }) {
   const body = {
     email: payload.email,
-    code: payload.code ?? payload.otp ?? "", // backend kamu baca 'code'
+    code: payload.code ?? payload.otp ?? "",
     reason: payload.reason ?? payload.purpose ?? payload.kind ?? "register",
   };
 
-  try {
-    return await request<{ ok: true }>(`/api/auth/verify-otp`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("HTTP 404") || /not\s*found/i.test(msg)) {
-      return request<{ ok: true }>(`/api/otp/verify`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-    }
-    throw e;
-  }
+  return request(`/api/auth/verify-otp`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
+// =================== MITRA ===================
 
-
-
-// =================== REGISTER MITRA ===================
-
-/**
- * Register Mitra
- * Tetap mempertahankan path lama (/api/mitra/register).
- * Jika 404, fallback ke /api/auth/mitra/register.
- * Sekarang mendukung `opening_hours` (opsional) agar sinkron dengan UI jam operasional.
- */
 export async function apiRegisterMitra(payload: {
   name: string;
   email: string;
@@ -242,50 +171,34 @@ export async function apiRegisterMitra(payload: {
   lat?: number;
   lng?: number;
   instagram?: string;
-  // Opening hours wire format—biarkan fleksibel; backend bisa tentukan bentuk pasti.
   opening_hours?: unknown;
 }) {
-  try {
-    return await request<AuthResp>(`/api/mitra/register`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("HTTP 404") || /not\s*found/i.test(msg)) {
-      return request<AuthResp>(`/api/auth/mitra/register`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-    }
-    throw e;
-  }
+  return request<AuthResp>(`/api/mitra/register`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
-
-// =================== DASHBOARD MITRA ===================
 
 export async function apiMitraDashboard() {
-  return request<MitraDashboardResp>(`/api/mitra/dashboard`, { auth: true });
+  return request<MitraDashboardResp>(`/api/mitra/dashboard`);
 }
 
-// =================== CAFES & REVIEWS ===================
+// =================== CAFES ===================
 
 export async function apiListCafes(params?: {
   search?: string;
   lat?: number;
   lng?: number;
-  radius?: number; // meter
+  radius?: number;
   limit?: number;
   offset?: number;
 }) {
   const q = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) q.set(k, String(v));
-    });
-  }
-  const qs = q.toString();
-  return request<ListCafesResp>(`/api/cafes${qs ? `?${qs}` : ""}`);
+  Object.entries(params ?? {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) q.set(k, String(v));
+  });
+
+  return request<ListCafesResp>(`/api/cafes${q.toString() ? `?${q}` : ""}`);
 }
 
 export async function apiCafeDetail(id: number | string) {
@@ -294,46 +207,41 @@ export async function apiCafeDetail(id: number | string) {
 
 export async function apiCafeReviews(
   cafeId: number | string,
-  params?: { rating?: number; limit?: number; offset?: number; status?: "published" | "pending" }
+  params?: {
+    rating?: number;
+    limit?: number;
+    offset?: number;
+    status?: "published" | "pending";
+  }
 ) {
   const q = new URLSearchParams();
-  if (params?.rating) q.set("rating", String(params.rating));
-  if (params?.limit) q.set("limit", String(params.limit));
-  if (params?.offset) q.set("offset", String(params.offset));
-  if (params?.status) q.set("status", params.status);
+  Object.entries(params ?? {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) q.set(k, String(v));
+  });
 
-  const qs = q.toString();
-  return request<{ total: number; data: Review[]; avg?: number; counts?: Record<number, number> }>(
-    `/api/cafes/${cafeId}/reviews${qs ? `?${qs}` : ""}`,
-    { auth: true }
-  );
+  return request(`/api/cafes/${cafeId}/reviews${q.toString() ? `?${q}` : ""}`);
 }
+
 export async function apiCreateReview(
   cafeId: number | string,
   payload: { rating: number; text?: string }
 ) {
-  return request<Review>(`/api/cafes/${cafeId}/reviews`, {
+  return request(`/api/cafes/${cafeId}/reviews`, {
     method: "POST",
-    auth: true,
     body: JSON.stringify(payload),
   });
 }
 
-
 export async function apiCafeMenu(id: number | string) {
-  // sebagian backend return {data:[...]}, sebagian langsung array.
   return request<MenuItem[] | { data: MenuItem[] }>(`/api/cafes/${id}/menu`);
 }
 
-/** Cafe milik user (mitra) */
 export async function apiMyCafes() {
-  // Tetap gunakan endpoint yang sudah kamu pakai
-  return request<{ data: Cafe[] }>(`/api/users/me/cafes`, { auth: true });
+  return request<{ data: Cafe[] }>(`/api/users/me/cafes`);
 }
 
-// =================== MENU CRUD ===================
+// =================== MENU ===================
 
-// Create
 export async function apiCreateMenuItem(payload: {
   cafe_id: number;
   name: string;
@@ -343,172 +251,56 @@ export async function apiCreateMenuItem(payload: {
   photo_url?: string;
   is_available?: boolean;
 }) {
-  return request<MenuItem>(`/api/menus`, {
+  return request(`/api/menus`, {
     method: "POST",
-    auth: true,
     body: JSON.stringify(payload),
   });
 }
 
-// Update
-export async function apiUpdateMenuItem(
-  id: number,
-  patch: Partial<{
-    name: string;
-    category?: string;
-    price: number;
-    description?: string;
-    photo_url?: string;
-    is_available?: boolean;
-  }>
-) {
-  return request<MenuItem>(`/api/menus/${id}`, {
+export async function apiUpdateMenuItem(id: number, patch: Partial<MenuItem>) {
+  return request(`/api/menus/${id}`, {
     method: "PUT",
-    auth: true,
     body: JSON.stringify(patch),
   });
 }
 
-// Delete
 export async function apiDeleteMenuItem(id: number) {
-  return request<{ ok: true }>(`/api/menus/${id}`, {
-    method: "DELETE",
-    auth: true,
-  });
+  return request(`/api/menus/${id}`, { method: "DELETE" });
 }
 
-// =================== UPDATE CAFE (termasuk jam operasional) ===================
-
-export async function apiUpdateCafe(
-  id: number | string,
-  patch: Partial<{
-    name: string;
-    description: string;
-    address: string;
-    lat: number;
-    lng: number;
-    instagram: string;
-    // Ganti ke tipe opening_hours yang kamu pakai di backend;
-    // untuk kompatibilitas pakai unknown di sini.
-    opening_hours: unknown;
-    cover_url: string;
-    phone: string;
-  }>
-) {
-  return request<Cafe>(`/api/cafes/${id}`, {
-    method: "PUT",
-    auth: true,
-    body: JSON.stringify(patch),
-  });
-}
-
-// =================== LAPORAN MITRA ===================
-
-export async function apiMitraReport(
-  cafeId: number | string,
-  params: { period: "daily" | "monthly" | "yearly" }
-) {
-  const q = new URLSearchParams();
-  q.set("period", params.period);
-  const qs = q.toString();
-  // auth: true → hanya mitra/admin
-  return request<{ series: { name: string; value: number }[]; total?: number }>(
-    `/api/cafes/${cafeId}/reports${qs ? `?${qs}` : ""}`,
-    { auth: true }
-  );
-}
-
-// =================== FAVORITES (USER) ===================
+// =================== FAVORITES ===================
 
 export async function apiMyFavorites() {
-  return request(`/api/users/me/favorites`, { auth: true });
+  return request(`/api/users/me/favorites`);
 }
 
 export async function apiAddFavorite(cafeId: number | string) {
-  return request(`/api/users/me/favorites/${cafeId}`, {
-    method: "POST",
-    auth: true,
-  });
+  return request(`/api/users/me/favorites/${cafeId}`, { method: "POST" });
 }
 
 export async function apiRemoveFavorite(cafeId: number | string) {
-  return request<{ ok: true }>(`/api/users/me/favorites/${cafeId}`, {
-    method: "DELETE",
-    auth: true,
-  });
+  return request(`/api/users/me/favorites/${cafeId}`, { method: "DELETE" });
 }
 
-// =================== UPLOAD MEDIA (logo & galeri) ===================
+// =================== UPLOAD ===================
 
-/**
- * Upload satu file ke storage (temp) → balikkan URL.
- * Fallback beberapa path umum agar fleksibel dengan backend-mu.
- */
 export async function apiUploadTempImage(file: File): Promise<{ url: string }> {
   const fd = new FormData();
   fd.append("file", file);
-  try {
-    return await requestMultipart<{ url: string }>(`/api/uploads/image`, fd, { auth: true });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("HTTP 404") || /not\s*found/i.test(msg)) {
-      try {
-        return await requestMultipart<{ url: string }>(`/api/uploads`, fd, { auth: true });
-      } catch {
-        return await requestMultipart<{ url: string }>(`/api/files/upload`, fd, { auth: true });
-      }
-    }
-    throw e;
-  }
+  return requestMultipart(`/api/uploads/image`, fd);
 }
 
-/**
- * Upload logo & beberapa foto suasana ke kafe tertentu.
- * Backend umum:
- *  - POST /api/cafes/:id/media  (fields: logo?, gallery[]?)
- * Fallback:
- *  - POST /api/cafes/:id/photos
- *  - POST /api/cafes/:id/gallery
- */
-export async function apiUploadCafeMedia(
-  cafeId: number,
-  files: { logo?: File | null; gallery?: File[] }
-): Promise<{ logo_url?: string; gallery_urls?: string[] }> {
-  const fd = new FormData();
-  if (files.logo) fd.append("logo", files.logo);
-  (files.gallery ?? []).forEach((f) => fd.append("gallery[]", f));
-
-  const tryPaths = [
-    `/api/cafes/${cafeId}/media`,
-    `/api/cafes/${cafeId}/photos`,
-    `/api/cafes/${cafeId}/gallery`,
-  ];
-
-  let lastErr: unknown;
-  for (const p of tryPaths) {
-    try {
-      return await requestMultipart<{ logo_url?: string; gallery_urls?: string[] }>(p, fd, {
-        auth: true,
-      });
-    } catch (e) {
-      lastErr = e;
-      // lanjut ke path berikutnya
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error("Upload gagal");
-}
-
-// =================== FORGOT & RESET PASSWORD ===================
+// =================== PASSWORD ===================
 
 export async function apiForgotPassword(email: string) {
-  return request<{ message: string }>("/api/auth/forgot-password", {
+  return request(`/api/auth/forgot-password`, {
     method: "POST",
     body: JSON.stringify({ email }),
   });
 }
 
 export async function apiResetPassword(token: string, password: string) {
-  return request<{ message: string }>("/api/auth/reset-password", {
+  return request(`/api/auth/reset-password`, {
     method: "POST",
     body: JSON.stringify({ token, password }),
   });

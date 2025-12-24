@@ -26,6 +26,7 @@ import { useAuth } from "@/lib/auth";
 import { apiMyFavorites } from "@/lib/api";
 import type { Cafe, User } from "@/types/domain";
 import { useRouter } from "next/navigation";
+import { apiMe } from "@/lib/api";
 
 type FavoriteRow = {
   id: number;
@@ -33,15 +34,48 @@ type FavoriteRow = {
 };
 
 export default function UserProfilePage() {
+  const [profileUser, setProfileUser] = useState<User | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const { user, loading, logout } = useAuth();
   const router = useRouter();
 
-  // redirect ke login kalau belum login
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return null;
+    return document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(name + "="))
+      ?.split("=")[1];
+  };
+
   useEffect(() => {
-    if (!loading && !user) {
+    const token = getCookie("cuppa_token");
+    if (!token) {
       router.replace("/login?next=/pengguna/profil");
     }
-  }, [loading, user, router]);
+  }, [router]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const token = getCookie("cuppa_token");
+    if (!token) {
+      router.replace("/login?next=/pengguna/profil");
+      return;
+    }
+
+    (async () => {
+      try {
+        const me = await apiMe(); // apiMe HARUS kirim Authorization header
+        setProfileUser(me.user ?? me);
+      } catch {
+        document.cookie = "cuppa_token=; path=/; max-age=0";
+        window.dispatchEvent(new Event("auth-update"));
+        router.replace("/login");
+      } finally {
+        setProfileLoading(false);
+      }
+    })();
+  }, [loading, router]);
 
   // ====== Favorites (nyata dari backend) ======
   const [favorites, setFavorites] = useState<FavoriteRow[]>([]);
@@ -49,7 +83,7 @@ export default function UserProfilePage() {
   const [favLoading, setFavLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!profileUser) return;
     setFavLoading(true);
     setFavErr(null);
     (async () => {
@@ -66,7 +100,7 @@ export default function UserProfilePage() {
 
   // ====== Profile data dari user login (fallback bila kosong) ======
   const profile = useMemo(() => {
-    const u = (user ?? {}) as Partial<User>;
+    const u = (profileUser ?? {}) as Partial<User>;
     const avatar =
       u.avatar_url ??
       `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
@@ -74,8 +108,7 @@ export default function UserProfilePage() {
       )}`;
     return {
       name: u.name ?? "User",
-      bio:
-        "Coffee enthusiast & explorer of local cafés. Always on the hunt for the perfect espresso!",
+      bio: "Coffee enthusiast & explorer of local cafés. Always on the hunt for the perfect espresso!",
       email: u.email ?? "-",
       phone: u.phone ?? "-",
       location: "-", // belum ada di schema user -> pakai placeholder
@@ -111,7 +144,7 @@ export default function UserProfilePage() {
   };
 
   // Saat loading auth, tampilkan skeleton sederhana
-  if (loading && !user) {
+  if (profileLoading) {
     return (
       <div className="min-h-screen bg-white text-[#271F01]">
         <Navbar />
@@ -283,9 +316,7 @@ export default function UserProfilePage() {
                               size="sm"
                               variant="secondary"
                               onClick={() =>
-                                router.push(
-                                  `/pengguna/coffeeshop/${cafe.id}`
-                                )
+                                router.push(`/pengguna/coffeeshop/${cafe.id}`)
                               }
                             >
                               View Details

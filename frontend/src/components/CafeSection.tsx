@@ -201,7 +201,7 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
             </p>
 
             <button
-              onClick={() => router.push(`/coffee-shop/${slug}`)}
+              onClick={() => router.push(`/pengguna/coffeeshop/${cafe.id}`)}
               className={`mt-4 bg-white text-[#2b210a] font-semibold px-5 py-2 rounded-full shadow-sm transition-all duration-700 ease-in-out ${
                 hoverImage
                   ? "opacity-100 translate-y-0"

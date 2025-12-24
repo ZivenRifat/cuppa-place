@@ -1,4 +1,3 @@
-// frontend/src/app/login/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,61 +7,53 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { canAccess, routeForRole } from "@/lib/roles";
 import Link from "next/link";
-import Cookies from "js-cookie";
 
 export default function LoginPage() {
-  const { user, loading, login } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nextPath, setNextPath] = useState<string>("/");
 
-  // Baca query ?next=
+  // 🔥 Baca query ?next=
   useEffect(() => {
     const qs = new URLSearchParams(window.location.search);
     setNextPath(qs.get("next") || "/");
   }, []);
 
-  // Auto redirect bila sudah login
-  useEffect(() => {
-    if (!loading && user) {
-      const preferred = nextPath || "/";
-
-      const allowedPath =
-        user.role === "user" && canAccess(user.role, preferred)
-          ? preferred
-          : routeForRole(user.role);
-
-      router.replace(allowedPath);
-    }
-  }, [loading, user, router, nextPath]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const loggedUser = await login(email.trim(), password);
+      const res = await fetch("http://localhost:4000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
 
-      // Get token from localStorage or session storage where login() stores it
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+      const data = await res.json();
+      console.log("LOGIN RESPONSE:", data);
 
-      if (token) {
-        Cookies.set("token", token, {
-          expires: 7,
-          path: "/",
-          sameSite: "Lax",
-        });
+      if (!res.ok) {
+        throw new Error(data.message || "Login gagal");
       }
 
+      // ✅ SIMPAN TOKEN KE COOKIE (SOURCE OF TRUTH)
+      document.cookie = `cuppa_token=${data.token}; path=/; max-age=86400`;
+
+      // 🔥 Trigger Navbar update
       window.dispatchEvent(new Event("auth-update"));
 
+      const role = data.user.role;
       const preferred = nextPath || "/";
 
       const allowedPath =
-        loggedUser.role === "user" && canAccess(loggedUser.role, preferred)
+        role === "user" && canAccess(role, preferred)
           ? preferred
-          : routeForRole(loggedUser.role);
+          : routeForRole(role);
 
       router.replace(allowedPath);
     } catch (err) {
@@ -75,7 +66,9 @@ export default function LoginPage() {
       {/* LEFT – LOGIN FORM */}
       <div className="w-full md:w-[40%] bg-[#2b210a] flex flex-col justify-center items-center px-10 py-12 text-white z-10 relative">
         <div className="w-full max-w-sm space-y-6">
-          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">Sign In</h1>
+          <h1 className="text-4xl font-bold text-center mb-6 -mt-10">
+            Sign In
+          </h1>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
@@ -91,7 +84,9 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-semibold">Password</label>
+              <label className="block mb-2 text-sm font-semibold">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
@@ -143,7 +138,8 @@ export default function LoginPage() {
             Hello, <br /> Selamat Datang!
           </h2>
           <p className="text-white text-base max-w-md drop-shadow-md">
-            CuppaPlace menghubungkan pecinta kopi dengan coffeeshop terbaik yang bermitra.
+            CuppaPlace menghubungkan pecinta kopi dengan coffeeshop terbaik yang
+            bermitra.
           </p>
         </div>
       </div>
