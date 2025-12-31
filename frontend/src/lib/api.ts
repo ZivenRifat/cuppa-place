@@ -182,14 +182,19 @@ export async function apiRegisterMitra(payload: {
 export async function apiMitraDashboard() {
   return request<MitraDashboardResp>(`/api/mitra/dashboard`);
 }
-export async function apiMitraReport(params?: Record<string, string | number | boolean>) {
-  const q = new URLSearchParams();
-  Object.entries(params ?? {}).forEach(([k, v]) => {
-    if (v !== undefined && v !== null) q.set(k, String(v));
-  });
+export async function apiMitraReport(
+  cafeId: number | string,
+  params?: { period?: "daily" | "monthly" | "yearly" }
+): Promise<Record<string, unknown>> {
+  const qs = params
+    ? `?${new URLSearchParams({ period: params.period ?? "" }).toString()}`
+    : "";
 
-  return request(`/api/mitra/report${q.toString() ? `?${q}` : ""}`);
+  return request<Record<string, unknown>>(
+    `/api/mitra/${cafeId}/report${qs}`
+  );
 }
+
 
 
 // =================== CAFES ===================
