@@ -182,6 +182,15 @@ export async function apiRegisterMitra(payload: {
 export async function apiMitraDashboard() {
   return request<MitraDashboardResp>(`/api/mitra/dashboard`);
 }
+export async function apiMitraReport(params?: Record<string, string | number | boolean>) {
+  const q = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) q.set(k, String(v));
+  });
+
+  return request(`/api/mitra/report${q.toString() ? `?${q}` : ""}`);
+}
+
 
 // =================== CAFES ===================
 
