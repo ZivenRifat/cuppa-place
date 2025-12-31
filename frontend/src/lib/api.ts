@@ -7,6 +7,8 @@ import type {
   MitraDashboardResp,
   Cafe,
   MenuItem,
+  ReportPeriod,
+  ReportResp,
   Review,
 } from "@/types/domain";
 
@@ -184,15 +186,12 @@ export async function apiMitraDashboard() {
 }
 export async function apiMitraReport(
   cafeId: number | string,
-  params?: { period?: "daily" | "monthly" | "yearly" }
-): Promise<Record<string, unknown>> {
-  const qs = params
-    ? `?${new URLSearchParams({ period: params.period ?? "" }).toString()}`
-    : "";
+  params?: { period?: ReportPeriod }
+): Promise<ReportResp> {
+  const q = new URLSearchParams();
+  if (params?.period) q.set("period", params.period);
 
-  return request<Record<string, unknown>>(
-    `/api/mitra/${cafeId}/report${qs}`
-  );
+  return request<ReportResp>(`/api/mitra/${cafeId}/report${q.toString() ? `?${q}` : ""}`);
 }
 
 

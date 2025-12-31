@@ -11,26 +11,35 @@ export interface User {
   avatar_url?: string | null;
 }
 
+/** ====== Auth / User ====== */
 export interface AuthResp {
   token: string;
   user: User;
 }
 
+export interface MeResp {
+  user: User;
+}
+
+/** ====== Cafe / Menu / Review ====== */
 export interface Cafe {
   id: number;
   name: string;
   slug: string;
   description?: string | null;
   address?: string | null;
+
   // Sequelize DECIMAL kadang balik string → izinkan number|string|null
   lat?: number | string | null;
   lng?: number | string | null;
+
   phone?: string | null;
   instagram?: string | null;
   opening_hours?: Record<string, string> | null;
   cover_url?: string | null;
   owner?: Pick<User, "id" | "name">;
-  distance_m?: number; // ditambahkan saat query nearby
+
+  distance_m?: number;
 }
 
 export interface MenuItem {
@@ -38,7 +47,7 @@ export interface MenuItem {
   cafe_id: number;
   name: string;
   category?: string | null;
-  price: number;           // IDR
+  price: number;
   photo_url?: string | null;
   is_available: boolean;
   description?: string | null;
@@ -49,13 +58,15 @@ export interface Review {
   cafe_id: number;
   user_id?: number | null;
   rating: number;
-  text?: string | null;      
-  comment?: string | null;   
+  text?: string | null;
+  comment?: string | null;
   photos?: unknown;
   created_at: string;
   updated_at: string;
+
   user?: Pick<User, "id" | "name" | "avatar_url">;
   cafe?: Pick<Cafe, "id" | "name">;
+
   rating_decimal?: number | string | null;
 }
 
@@ -63,14 +74,13 @@ export interface ListReviewsResp {
   total: number;
   data: Review[];
   avg?: number;
-  counts?: Record<number, number>; // {5:12, 4:3, ...}
+  counts?: Record<number, number>;
 }
 
-
-/** ====== API responses ====== */
-export interface AuthResp { token: string; user: User; }
-export interface MeResp { user: User; }
-export interface ListCafesResp { total: number; data: Cafe[]; }
+export interface ListCafesResp {
+  total: number;
+  data: Cafe[];
+}
 
 /** ====== Mitra Dashboard ====== */
 export interface MitraDashboardResp {
@@ -84,5 +94,16 @@ export interface MitraDashboardResp {
   visitors: { name: string; value: number }[];
   recommendations: string[];
 }
-export interface ReportSeriesPoint { name: string; value: number; }
-export interface ReportResp { series: ReportSeriesPoint[]; total?: number; }
+
+/** ====== Report (Mitra Laporan) ====== */
+export type ReportPeriod = "daily" | "monthly" | "yearly";
+
+export interface ReportSeriesPoint {
+  name: string;
+  value: number;
+}
+
+export interface ReportResp {
+  series: ReportSeriesPoint[];
+  total?: number;
+}
