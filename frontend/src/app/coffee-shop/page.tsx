@@ -22,3 +22,11 @@
 //     </main>
 //   );
 // }
+export default function CoffeeShopPage() {
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Coffee Shop</h1>
+      <p>Halaman ini sedang dipersiapkan.</p>
+    </main>
+  );
+}
