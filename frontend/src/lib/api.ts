@@ -301,12 +301,15 @@ export async function apiUploadTempImage(file: File): Promise<{ url: string }> {
 
 // =================== PASSWORD ===================
 
-export async function apiForgotPassword(email: string) {
+export async function apiForgotPassword(
+  email: string
+): Promise<{ message?: string }> {
   return request(`/api/auth/forgot-password`, {
     method: "POST",
     body: JSON.stringify({ email }),
   });
 }
+
 
 export async function apiResetPassword(token: string, password: string) {
   return request(`/api/auth/reset-password`, {
