@@ -1,5 +1,4 @@
 // frontend/src/lib/api.ts
-
 import type {
   AuthResp,
   MeResp,
@@ -9,21 +8,78 @@ import type {
   MenuItem,
   ReportPeriod,
   ReportResp,
-  Review,
 } from "@/types/domain";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(
-  /\/+$/,
-  ""
-);
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
 
+// =================== TOKEN HELPERS ===================
+// Simpan token di localStorage (Bearer token)
+const TOKEN_KEY = "cuppa_token";
+
+export function setAuthToken(token: string | null | undefined) {
+  if (typeof window === "undefined") return;
+  if (!token) window.localStorage.removeItem(TOKEN_KEY);
+  else window.localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+// =================== TOKEN RESPONSE TYPES (NO ANY) ===================
+type TokenContainer = {
+  token?: string;
+  access_token?: string;
+};
+
+type AuthResponseWithToken = AuthResp & {
+  token?: string;
+  access_token?: string;
+  data?: TokenContainer;
+};
+
+// Minimal safe object check (no any)
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function readStringProp(obj: Record<string, unknown>, key: string): string | null {
+  const v = obj[key];
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
+function extractToken(resp: unknown): string | null {
+  if (!isRecord(resp)) return null;
+
+  // token / access_token di root
+  const rootToken = readStringProp(resp, "token") ?? readStringProp(resp, "access_token");
+  if (rootToken) return rootToken;
+
+  // token / access_token di resp.data
+  const dataVal = resp["data"];
+  if (isRecord(dataVal)) {
+    const dataToken =
+      readStringProp(dataVal, "token") ?? readStringProp(dataVal, "access_token");
+    if (dataToken) return dataToken;
+  }
+
+  return null;
+}
+
+// =================== REQUEST CORE ===================
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOpts = RequestInit & {
   timeoutMs?: number;
+  auth?: boolean; // default true (kecuali endpoint public)
 };
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
+  if (!API_BASE) {
+    throw new Error("NEXT_PUBLIC_API_BASE belum di-set. Contoh: http://localhost:4000");
+  }
+
   const url = `${API_BASE}${path}`;
 
   const ac =
@@ -38,6 +94,14 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     ...(opts.headers as Record<string, string>),
   };
 
+  // AUTO AUTH HEADER (Bearer)
+  const useAuth = opts.auth !== false; // default true
+  if (useAuth) {
+    const token = getAuthToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // JSON body content-type
   if (opts.body && !(opts.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -47,12 +111,15 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     headers,
     body: opts.body as BodyInit | null | undefined,
     signal: ac?.signal,
-    credentials: "include",
+    // backend kamu credentials:false dan auth via Bearer token -> OMIT cookies
+    credentials: "omit",
   }).finally(() => {
     if (timeout) clearTimeout(timeout);
   });
 
+  // 401 handling
   if (res.status === 401) {
+    setAuthToken(null);
     throw new Error("Unauthorized");
   }
 
@@ -62,13 +129,18 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 
     try {
       if (ct.includes("application/json")) {
-        const j = await res.json();
-        msg = j?.message || j?.error || msg;
+        const j: unknown = await res.json();
+        if (isRecord(j)) {
+          const m = readStringProp(j, "message") ?? readStringProp(j, "error");
+          if (m) msg = m;
+        }
       } else {
         const t = await res.text();
         if (t) msg = t;
       }
-    } catch {}
+    } catch {
+      // ignore parsing errors
+    }
 
     throw new Error(msg);
   }
@@ -99,10 +171,17 @@ async function requestMultipart<T>(
 // =================== AUTH ===================
 
 export async function apiLogin(payload: { email: string; password: string }) {
-  return request<AuthResp>(`/api/auth/login`, {
+  const resp = await request<AuthResp>(`/api/auth/login`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify(payload),
   });
+
+  // extract token (tanpa any)
+  const token = extractToken(resp);
+  if (token) setAuthToken(token);
+
+  return resp;
 }
 
 export async function apiRegister(payload: {
@@ -111,18 +190,26 @@ export async function apiRegister(payload: {
   password: string;
   phone?: string;
 }) {
-  return request<AuthResp>(`/api/auth/register`, {
+  const resp = await request<AuthResp>(`/api/auth/register`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify(payload),
   });
+
+  const token = extractToken(resp);
+  if (token) setAuthToken(token);
+
+  return resp;
 }
 
 export async function apiMe() {
-  return request<MeResp>(`/api/auth/me`);
+  return request<MeResp>(`/api/auth/me`, { method: "GET", auth: true });
 }
 
+// Backend kamu pakai Bearer token, jadi logout cukup clear token di client.
 export async function apiLogout() {
-  return request(`/api/auth/logout`, { method: "POST" });
+  setAuthToken(null);
+  return { ok: true };
 }
 
 // =================== OTP ===================
@@ -137,6 +224,7 @@ export async function apiSendOtp(
 
   return request(`/api/auth/send-otp`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify(body),
   });
 }
@@ -157,6 +245,7 @@ export async function apiVerifyOtp(payload: {
 
   return request(`/api/auth/verify-otp`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify(body),
   });
 }
@@ -175,15 +264,25 @@ export async function apiRegisterMitra(payload: {
   instagram?: string;
   opening_hours?: unknown;
 }) {
-  return request<AuthResp>(`/api/mitra/register`, {
+  const resp = await request<AuthResp>(`/api/mitra/register`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify(payload),
   });
+
+  const token = extractToken(resp);
+  if (token) setAuthToken(token);
+
+  return resp;
 }
 
 export async function apiMitraDashboard() {
-  return request<MitraDashboardResp>(`/api/mitra/dashboard`);
+  return request<MitraDashboardResp>(`/api/mitra/dashboard`, {
+    method: "GET",
+    auth: true,
+  });
 }
+
 export async function apiMitraReport(
   cafeId: number | string,
   params?: { period?: ReportPeriod }
@@ -191,10 +290,11 @@ export async function apiMitraReport(
   const q = new URLSearchParams();
   if (params?.period) q.set("period", params.period);
 
-  return request<ReportResp>(`/api/mitra/${cafeId}/report${q.toString() ? `?${q}` : ""}`);
+  return request<ReportResp>(
+    `/api/mitra/${cafeId}/report${q.toString() ? `?${q}` : ""}`,
+    { method: "GET", auth: true }
+  );
 }
-
-
 
 // =================== CAFES ===================
 
@@ -211,11 +311,14 @@ export async function apiListCafes(params?: {
     if (v !== undefined && v !== null) q.set(k, String(v));
   });
 
-  return request<ListCafesResp>(`/api/cafes${q.toString() ? `?${q}` : ""}`);
+  return request<ListCafesResp>(`/api/cafes${q.toString() ? `?${q}` : ""}`, {
+    method: "GET",
+    auth: false, // public
+  });
 }
 
 export async function apiCafeDetail(id: number | string) {
-  return request(`/api/cafes/${id}`);
+  return request(`/api/cafes/${id}`, { method: "GET", auth: false });
 }
 
 export async function apiCafeReviews(
@@ -232,7 +335,10 @@ export async function apiCafeReviews(
     if (v !== undefined && v !== null) q.set(k, String(v));
   });
 
-  return request(`/api/cafes/${cafeId}/reviews${q.toString() ? `?${q}` : ""}`);
+  return request(`/api/cafes/${cafeId}/reviews${q.toString() ? `?${q}` : ""}`, {
+    method: "GET",
+    auth: false,
+  });
 }
 
 export async function apiCreateReview(
@@ -241,16 +347,23 @@ export async function apiCreateReview(
 ) {
   return request(`/api/cafes/${cafeId}/reviews`, {
     method: "POST",
+    auth: true,
     body: JSON.stringify(payload),
   });
 }
 
 export async function apiCafeMenu(id: number | string) {
-  return request<MenuItem[] | { data: MenuItem[] }>(`/api/cafes/${id}/menu`);
+  return request<MenuItem[] | { data: MenuItem[] }>(`/api/cafes/${id}/menu`, {
+    method: "GET",
+    auth: false,
+  });
 }
 
 export async function apiMyCafes() {
-  return request<{ data: Cafe[] }>(`/api/users/me/cafes`);
+  return request<{ data: Cafe[] }>(`/api/users/me/cafes`, {
+    method: "GET",
+    auth: true,
+  });
 }
 
 // =================== MENU ===================
@@ -266,6 +379,7 @@ export async function apiCreateMenuItem(payload: {
 }) {
   return request(`/api/menus`, {
     method: "POST",
+    auth: true,
     body: JSON.stringify(payload),
   });
 }
@@ -273,26 +387,33 @@ export async function apiCreateMenuItem(payload: {
 export async function apiUpdateMenuItem(id: number, patch: Partial<MenuItem>) {
   return request(`/api/menus/${id}`, {
     method: "PUT",
+    auth: true,
     body: JSON.stringify(patch),
   });
 }
 
 export async function apiDeleteMenuItem(id: number) {
-  return request(`/api/menus/${id}`, { method: "DELETE" });
+  return request(`/api/menus/${id}`, { method: "DELETE", auth: true });
 }
 
 // =================== FAVORITES ===================
 
 export async function apiMyFavorites() {
-  return request(`/api/users/me/favorites`);
+  return request(`/api/users/me/favorites`, { method: "GET", auth: true });
 }
 
 export async function apiAddFavorite(cafeId: number | string) {
-  return request(`/api/users/me/favorites/${cafeId}`, { method: "POST" });
+  return request(`/api/users/me/favorites/${cafeId}`, {
+    method: "POST",
+    auth: true,
+  });
 }
 
 export async function apiRemoveFavorite(cafeId: number | string) {
-  return request(`/api/users/me/favorites/${cafeId}`, { method: "DELETE" });
+  return request(`/api/users/me/favorites/${cafeId}`, {
+    method: "DELETE",
+    auth: true,
+  });
 }
 
 // =================== UPLOAD ===================
@@ -300,20 +421,18 @@ export async function apiRemoveFavorite(cafeId: number | string) {
 export async function apiUploadTempImage(file: File): Promise<{ url: string }> {
   const fd = new FormData();
   fd.append("file", file);
-  return requestMultipart(`/api/uploads/image`, fd);
+  return requestMultipart(`/api/uploads/image`, fd, { auth: true });
 }
 
 // =================== PASSWORD ===================
 
-export async function apiForgotPassword(
-  email: string
-): Promise<{ message?: string }> {
+export async function apiForgotPassword(email: string): Promise<{ message?: string }> {
   return request(`/api/auth/forgot-password`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify({ email }),
   });
 }
-
 
 export async function apiResetPassword(
   token: string,
@@ -321,6 +440,7 @@ export async function apiResetPassword(
 ): Promise<{ message?: string }> {
   return request<{ message?: string }>(`/api/auth/reset-password`, {
     method: "POST",
+    auth: false,
     body: JSON.stringify({ token, password }),
   });
 }
