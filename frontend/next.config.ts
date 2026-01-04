@@ -8,24 +8,27 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
+        protocol: "https",
+        hostname: "cuppaplace.web.id",
+        pathname: "/uploads/**",
+      },
+      {
+        protocol: "https",
+        hostname: "www.cuppaplace.web.id",
+        pathname: "/uploads/**",
+      },
+      {
         protocol: "http",
         hostname: "localhost",
-        port: "4000",
+        port: "4010",
         pathname: "/uploads/**",
       },
       {
         protocol: "http",
         hostname: "127.0.0.1",
-        port: "4000",
+        port: "4010",
         pathname: "/uploads/**",
       },
-      // kalau nanti backend kamu di domain lain, tinggal tambahkan entry baru di sini
-      // {
-      //   protocol: "https",
-      //   hostname: "api.cuppaplace.com",
-      //   port: "",
-      //   pathname: "/uploads/**",
-      // },
     ],
   },
 };
