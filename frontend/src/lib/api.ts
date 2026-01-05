@@ -13,7 +13,6 @@ import type {
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
 
 // =================== TOKEN HELPERS ===================
-// Simpan token di localStorage (Bearer token)
 const TOKEN_KEY = "cuppa_token";
 
 export function setAuthToken(token: string | null | undefined) {
@@ -27,19 +26,7 @@ export function getAuthToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
-// =================== TOKEN RESPONSE TYPES (NO ANY) ===================
-type TokenContainer = {
-  token?: string;
-  access_token?: string;
-};
-
-type AuthResponseWithToken = AuthResp & {
-  token?: string;
-  access_token?: string;
-  data?: TokenContainer;
-};
-
-// Minimal safe object check (no any)
+// =================== SAFE HELPERS (NO ANY) ===================
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -56,7 +43,7 @@ function extractToken(resp: unknown): string | null {
   const rootToken = readStringProp(resp, "token") ?? readStringProp(resp, "access_token");
   if (rootToken) return rootToken;
 
-  // token / access_token di resp.data
+  // token / access_token di resp.data (kalau ada)
   const dataVal = resp["data"];
   if (isRecord(dataVal)) {
     const dataToken =
@@ -67,23 +54,21 @@ function extractToken(resp: unknown): string | null {
   return null;
 }
 
-// =================== REQUEST CORE ===================
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOpts = RequestInit & {
   timeoutMs?: number;
-  auth?: boolean; // default true (kecuali endpoint public)
+  auth?: boolean; // default true, set false untuk endpoint public
 };
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   if (!API_BASE) {
-    throw new Error("NEXT_PUBLIC_API_BASE belum di-set. Contoh: http://localhost:4000");
+    throw new Error("NEXT_PUBLIC_API_BASE belum di-set. Contoh: http://localhost:4010");
   }
 
   const url = `${API_BASE}${path}`;
 
-  const ac =
-    typeof AbortController !== "undefined" ? new AbortController() : undefined;
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : undefined;
   let timeout: NodeJS.Timeout | undefined;
 
   if (opts.timeoutMs && ac) {
@@ -95,13 +80,13 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   };
 
   // AUTO AUTH HEADER (Bearer)
-  const useAuth = opts.auth !== false; // default true
+  const useAuth = opts.auth !== false;
   if (useAuth) {
     const token = getAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // JSON body content-type
+  // JSON content-type (JANGAN set untuk FormData)
   if (opts.body && !(opts.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -111,7 +96,6 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     headers,
     body: opts.body as BodyInit | null | undefined,
     signal: ac?.signal,
-    // backend kamu credentials:false dan auth via Bearer token -> OMIT cookies
     credentials: "omit",
   }).finally(() => {
     if (timeout) clearTimeout(timeout);
@@ -139,7 +123,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
         if (t) msg = t;
       }
     } catch {
-      // ignore parsing errors
+      // ignore
     }
 
     throw new Error(msg);
@@ -169,7 +153,6 @@ async function requestMultipart<T>(
 }
 
 // =================== AUTH ===================
-
 export async function apiLogin(payload: { email: string; password: string }) {
   const resp = await request<AuthResp>(`/api/auth/login`, {
     method: "POST",
@@ -177,7 +160,6 @@ export async function apiLogin(payload: { email: string; password: string }) {
     body: JSON.stringify(payload),
   });
 
-  // extract token (tanpa any)
   const token = extractToken(resp);
   if (token) setAuthToken(token);
 
@@ -206,17 +188,13 @@ export async function apiMe() {
   return request<MeResp>(`/api/auth/me`, { method: "GET", auth: true });
 }
 
-// Backend kamu pakai Bearer token, jadi logout cukup clear token di client.
 export async function apiLogout() {
   setAuthToken(null);
   return { ok: true };
 }
 
 // =================== OTP ===================
-
-export async function apiSendOtp(
-  payload: { email: string; reason?: string } | string
-) {
+export async function apiSendOtp(payload: { email: string; reason?: string } | string) {
   const body =
     typeof payload === "string"
       ? { email: payload, reason: "register" }
@@ -252,6 +230,12 @@ export async function apiVerifyOtp(payload: {
 
 // =================== MITRA ===================
 
+// Optional: tipe response register mitra (biar ga pakai any)
+export type RegisterMitraResp = AuthResp & {
+  cafe?: { id?: number; name?: string; logo_url?: string | null; cover_url?: string | null };
+};
+
+// ✅ Register Mitra via FormData (sekali jalan bisa upload logo/cover)
 export async function apiRegisterMitra(payload: {
   name: string;
   email: string;
@@ -270,13 +254,14 @@ export async function apiRegisterMitra(payload: {
   fd.append("name", payload.name);
   fd.append("email", payload.email);
   fd.append("password", payload.password);
-  if (payload.phone) fd.append("phone", payload.phone);
-
   fd.append("cafe_name", payload.cafe_name);
+
+  if (payload.phone) fd.append("phone", payload.phone);
   if (payload.address) fd.append("address", payload.address);
   if (payload.lat != null) fd.append("lat", String(payload.lat));
   if (payload.lng != null) fd.append("lng", String(payload.lng));
   if (payload.instagram) fd.append("instagram", payload.instagram);
+
   if (payload.opening_hours != null) {
     fd.append("opening_hours", JSON.stringify(payload.opening_hours));
   }
@@ -284,7 +269,7 @@ export async function apiRegisterMitra(payload: {
   if (payload.logo) fd.append("logo", payload.logo);
   if (payload.cover) fd.append("cover", payload.cover);
 
-  const resp = await request<AuthResp>(`/api/mitra/register`, {
+  const resp = await request<RegisterMitraResp>(`/api/mitra/register`, {
     method: "POST",
     auth: false,
     body: fd,
@@ -295,7 +280,6 @@ export async function apiRegisterMitra(payload: {
 
   return resp;
 }
-
 
 export async function apiMitraDashboard() {
   return request<MitraDashboardResp>(`/api/mitra/dashboard`, {
@@ -318,7 +302,6 @@ export async function apiMitraReport(
 }
 
 // =================== CAFES ===================
-
 export async function apiListCafes(params?: {
   search?: string;
   lat?: number;
@@ -334,7 +317,7 @@ export async function apiListCafes(params?: {
 
   return request<ListCafesResp>(`/api/cafes${q.toString() ? `?${q}` : ""}`, {
     method: "GET",
-    auth: false, // public
+    auth: false,
   });
 }
 
@@ -386,6 +369,15 @@ export async function apiMyCafes() {
     auth: true,
   });
 }
+
+export async function apiMyLatestCafe() {
+  const res = await apiMyCafes();
+  const cafes = res.data ?? [];
+  if (cafes.length === 0) return null;
+  const latest = [...cafes].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+  return latest ?? null;
+}
+
 export async function apiUploadCafeMedia(
   cafeId: number | string,
   payload: { logo?: File | null; cover?: File | null }
@@ -394,25 +386,12 @@ export async function apiUploadCafeMedia(
   if (payload.logo) fd.append("logo", payload.logo);
   if (payload.cover) fd.append("cover", payload.cover);
 
-  // kalau tidak ada file, tidak usah request
-  if (!payload.logo && !payload.cover) {
-    return null;
-  }
+  if (!payload.logo && !payload.cover) return null;
 
   return requestMultipart(`/api/cafes/${cafeId}/media`, fd, { auth: true });
 }
 
-export async function apiMyLatestCafe() {
-  const res = await apiMyCafes(); // { data: Cafe[] }
-  const cafes = res.data ?? [];
-  if (cafes.length === 0) return null;
-  const latest = [...cafes].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
-  return latest ?? null;
-}
-
-
 // =================== MENU ===================
-
 export async function apiCreateMenuItem(payload: {
   cafe_id: number;
   name: string;
@@ -442,7 +421,6 @@ export async function apiDeleteMenuItem(id: number) {
 }
 
 // =================== FAVORITES ===================
-
 export async function apiMyFavorites() {
   return request(`/api/users/me/favorites`, { method: "GET", auth: true });
 }
@@ -462,7 +440,6 @@ export async function apiRemoveFavorite(cafeId: number | string) {
 }
 
 // =================== UPLOAD ===================
-
 export async function apiUploadTempImage(file: File): Promise<{ url: string }> {
   const fd = new FormData();
   fd.append("file", file);
@@ -470,7 +447,6 @@ export async function apiUploadTempImage(file: File): Promise<{ url: string }> {
 }
 
 // =================== PASSWORD ===================
-
 export async function apiForgotPassword(email: string): Promise<{ message?: string }> {
   return request(`/api/auth/forgot-password`, {
     method: "POST",

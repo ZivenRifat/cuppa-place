@@ -50,6 +50,7 @@ export type MitraFormData = {
   opening_hours: OpeningHours;
 
   logoFile?: File | null;
+  coverFile?: File | null;
   galleryFiles?: File[];
   logoPreviewUrl?: string | null;
   galleryPreviewUrls?: string[];
