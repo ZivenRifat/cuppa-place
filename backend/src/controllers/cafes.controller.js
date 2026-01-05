@@ -1,3 +1,4 @@
+// backend/src/controllers/cafes.controller.js
 const { Op } = require("sequelize");
 const { Cafe, Menu } = require("../models");
 
@@ -25,9 +26,15 @@ function baseUrl(req) {
 
 function toPublicUrl(req, p) {
   if (!p) return null;
+
   if (/^https?:\/\//i.test(p)) return p;
-  const path = p.startsWith("/") ? p : `/${p}`;
-  return `${baseUrl(req)}${path}`;
+
+  const s = String(p).replace(/\\/g, "/");
+
+  const idx = s.lastIndexOf("/uploads/");
+  const clean = idx >= 0 ? s.slice(idx) : s.startsWith("/") ? s : `/${s}`;
+
+  return `${baseUrl(req)}${clean}`;
 }
 
 function normalizeCafe(req, cafeJson) {
@@ -36,6 +43,19 @@ function normalizeCafe(req, cafeJson) {
     cover_url: cafeJson.cover_url ? toPublicUrl(req, cafeJson.cover_url) : null,
     logo_url: cafeJson.logo_url ? toPublicUrl(req, cafeJson.logo_url) : null,
   };
+}
+
+function toUploadsPath(p) {
+  if (!p) return null;
+  const s = String(p).replace(/\\/g, "/");
+
+  const idx = s.lastIndexOf("/uploads/");
+  if (idx >= 0) return s.slice(idx); // "/uploads/..."
+
+  if (s.startsWith("uploads/")) return `/${s}`; // "/uploads/..."
+  if (s.startsWith("/uploads/")) return s;
+
+  return null;
 }
 
 exports.list = async (req, res, next) => {
@@ -68,18 +88,15 @@ exports.list = async (req, res, next) => {
       data = data.map((d) => {
         const has = d.lat != null && d.lng != null;
         const dist = has
-          ? haversine(
-              Number(lat),
-              Number(lng),
-              Number(d.lat),
-              Number(d.lng)
-            )
+          ? haversine(Number(lat), Number(lng), Number(d.lat), Number(d.lng))
           : null;
         return { ...d, distance_m: dist };
       });
       if (R > 0)
         data = data.filter((d) => d.distance_m != null && d.distance_m <= R);
-      data.sort((a, b) => (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity));
+      data.sort(
+        (a, b) => (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity)
+      );
     }
 
     res.json({ data });
@@ -131,7 +148,6 @@ exports.update = async (req, res, next) => {
   }
 };
 
-// ✅ NEW: upload cover/logo lalu update cafe.cover_url/logo_url
 exports.updateMedia = async (req, res, next) => {
   try {
     const cafe = await Cafe.findByPk(req.params.id);
@@ -150,12 +166,15 @@ exports.updateMedia = async (req, res, next) => {
     }
 
     if (coverFile) {
-      const rel = coverFile.path.replace(/\\/g, "/"); // uploads/covers/xxx.jpg
-      cafe.cover_url = `/${rel}`; // simpan relative path ke DB
+      const p = toUploadsPath(coverFile.path);
+      if (!p) return res.status(500).json({ message: "Invalid cover path" });
+      cafe.cover_url = p; 
     }
+
     if (logoFile) {
-      const rel = logoFile.path.replace(/\\/g, "/"); // uploads/logos/yyy.png
-      cafe.logo_url = `/${rel}`;
+      const p = toUploadsPath(logoFile.path);
+      if (!p) return res.status(500).json({ message: "Invalid logo path" });
+      cafe.logo_url = p; 
     }
 
     await cafe.save();

@@ -1,89 +1,66 @@
-// backend/src/controllers/upload.controller.js
 const fs = require("fs");
 const path = require("path");
 
-function ensureDir(p) {
-  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
-}
-
+// memastikan root uploads ada
 exports.ensureUploadRoot = (rootAbs) => {
-  ensureDir(rootAbs);
-  ensureDir(path.join(rootAbs, "logos"));
-  ensureDir(path.join(rootAbs, "covers"));
-  ensureDir(path.join(rootAbs, "gallery"));
-  ensureDir(path.join(rootAbs, "tmp"));
+  try {
+    fs.mkdirSync(rootAbs, { recursive: true });
+    for (const d of ["logos", "covers", "gallery", "tmp"]) {
+      fs.mkdirSync(path.join(rootAbs, d), { recursive: true });
+    }
+  } catch (e) {
+    console.error("[uploads] ensureUploadRoot error:", e);
+  }
 };
 
-function toPublicPath(filePath) {
-  // filePath bisa: "uploads/logos/abc.png" atau absolute
-  // kita normalisasi jadi "/uploads/...."
-  const norm = String(filePath).replace(/\\/g, "/");
+// base url yang benar (https + host)
+function baseUrl(req) {
+  const envBase = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+  if (envBase) return envBase;
+  return `${req.protocol}://${req.get("host")}`;
+}
 
-  // cari posisi "/uploads/" atau "uploads/"
-  const idx = norm.lastIndexOf("/uploads/");
-  if (idx >= 0) return norm.slice(idx); // sudah ada leading "/"
+// ubah absolute path filesystem -> relative URL /uploads/...
+function fileToPublicPath(absOrRelPath) {
+  if (!absOrRelPath) return null;
 
-  const idx2 = norm.lastIndexOf("uploads/");
-  if (idx2 >= 0) return "/" + norm.slice(idx2);
+  // normalisasi slash
+  const p = String(absOrRelPath).replace(/\\/g, "/");
 
-  // fallback (paling aman jangan expose absolute path)
+  // kasus multer memberikan absolute path (misal /mine/.../backend/uploads/logos/a.png)
+  const idx = p.lastIndexOf("/uploads/");
+  if (idx >= 0) return p.slice(idx); // "/uploads/logos/a.png"
+
+  // kasus multer memberikan relative path "uploads/logos/a.png"
+  if (p.startsWith("uploads/")) return `/${p}`; // "/uploads/logos/a.png"
+
+  // fallback aman
+  if (p.startsWith("/uploads/")) return p;
   return null;
 }
 
-function getBaseUrl(req) {
-  // supaya https kebaca benar di balik Cloudflare / reverse proxy
-  const proto =
-    (req.headers["x-forwarded-proto"] || req.protocol || "http")
-      .toString()
-      .split(",")[0]
-      .trim();
+exports.afterSingle = (req, res) => {
+  const f = req.file;
+  if (!f) return res.status(400).json({ message: "No file uploaded" });
 
-  const host = req.headers["x-forwarded-host"] || req.get("host");
-  return `${proto}://${host}`;
-}
-
-exports.afterSingle = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "No file uploaded" });
-  }
-
-  const publicPath = toPublicPath(req.file.path);
+  const publicPath = fileToPublicPath(f.path);
   if (!publicPath) {
-    return res.status(500).json({ message: "Cannot build public path" });
+    return res.status(500).json({ message: "Failed to build public file path" });
   }
 
-  const base = getBaseUrl(req);
-
-  return res.status(201).json({
-    url: `${base}${publicPath}`, // ✅ https://cuppaplace.web.id/uploads/logos/xxx.png
-    path: publicPath,           // ✅ /uploads/logos/xxx.png
-    filename: req.file.filename,
-    mimetype: req.file.mimetype,
-    size: req.file.size,
-  });
+  const url = `${baseUrl(req)}${publicPath}`;
+  return res.status(201).json({ url, path: publicPath });
 };
 
-exports.afterMultiple = async (req, res) => {
+exports.afterMultiple = (req, res) => {
   const files = req.files || [];
-  if (!Array.isArray(files) || files.length === 0) {
-    return res.status(400).json({ message: "No files uploaded" });
-  }
-
-  const base = getBaseUrl(req);
-
-  const items = files
+  const out = files
     .map((f) => {
-      const publicPath = toPublicPath(f.path);
+      const publicPath = fileToPublicPath(f.path);
       if (!publicPath) return null;
-      return {
-        url: `${base}${publicPath}`,
-        path: publicPath,
-        filename: f.filename,
-        mimetype: f.mimetype,
-        size: f.size,
-      };
+      return { url: `${baseUrl(req)}${publicPath}`, path: publicPath };
     })
     .filter(Boolean);
 
-  return res.status(201).json({ files: items });
+  return res.status(201).json({ files: out });
 };
