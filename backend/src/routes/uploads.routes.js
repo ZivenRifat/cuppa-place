@@ -1,22 +1,22 @@
+// backend/src/routes/uploads.routes.js
 const router = require("express").Router();
 const path = require("path");
 const multer = require("multer");
 const crypto = require("crypto");
 const { authRequired, roleRequired } = require("../middlewares/auth");
 const ctrl = require("../controllers/upload.controller");
-
-const UP_ROOT = path.resolve("uploads");
+const UP_ROOT = path.resolve(__dirname, "..", "..", "uploads");
 ctrl.ensureUploadRoot(UP_ROOT);
 
 function subdir(dir) {
   return (req, file, cb) => {
-    cb(null, path.join("uploads", dir)); // -> uploads/<dir>
+    cb(null, path.join(UP_ROOT, dir));
   };
 }
 
 function fileFilter(req, file, cb) {
   const ok = /^image\/(png|jpe?g|webp|gif|svg\+xml)$/i.test(file.mimetype);
-  if (!ok) return cb(new Error("Only image files allowed"));
+  if (!ok) return cb(new Error("HANYA GAMBAR YANG DIIZINKAN BROO"));
   cb(null, true);
 }
 
@@ -42,10 +42,6 @@ const upGallery = createMulter("gallery");
 const upCover = createMulter("covers");
 const upTemp = createMulter("tmp");
 
-/**
- * Untuk kompatibilitas dengan frontend (apiUploadTempImage):
- * POST /api/uploads/image  (field: file)
- */
 router.post(
   "/image",
   authRequired,
@@ -54,12 +50,6 @@ router.post(
   ctrl.afterSingle
 );
 
-/**
- * Tetap ada endpoint lama:
- * POST /api/uploads/logo    (field: file)
- * POST /api/uploads/cover   (field: file)
- * POST /api/uploads/gallery (field: files[])
- */
 router.post(
   "/logo",
   authRequired,
