@@ -20,11 +20,12 @@ function filename(req, file, cb) {
   cb(null, `${name}${ext}`);
 }
 
+const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // cover -> uploads/covers, logo -> uploads/logos
     const dir = file.fieldname === "cover" ? "covers" : "logos";
-    cb(null, path.join("uploads", dir));
+    cb(null, path.join(UPLOAD_ROOT, dir));
   },
   filename,
 });
@@ -43,8 +44,6 @@ router.get("/:id/reviews", reviewCtrl.listForCafe);
 router.post("/:id/reviews", authRequired, reviewCtrl.create);
 router.get("/:id/reports", authRequired, ctrl.reports);
 router.put("/:id", authRequired, ctrl.update);
-
-// ✅ NEW: upload cover/logo dan langsung update Cafe
 router.post(
   "/:id/media",
   authRequired,
