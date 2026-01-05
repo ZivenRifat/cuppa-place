@@ -215,12 +215,18 @@ export default function CafeDetailPage({ params }: Props) {
         <section className="grid gap-6 md:grid-cols-3">
           <div className="md:col-span-2 space-y-4">
             <div className="relative w-full h-56 md:h-72 rounded-2xl overflow-hidden border border-gray-200/80">
-              <Image
-                src={cafe.cover_url || "/img/home/bg-section.jpg"}
-                alt={cafe.name}
-                fill
-                className="object-cover"
-              />
+              {cafe.photo_url ? (
+                <Image
+                  src={cafe.photo_url}
+                  alt={cafe.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#f3eee5] flex items-center justify-center text-sm text-gray-500">
+                  Foto tidak tersedia
+                </div>
+              )}
             </div>
 
             <div className="border border-gray-200/80 rounded-2xl px-4 py-4 bg-white">
