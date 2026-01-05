@@ -8,7 +8,7 @@ import StepIndicator from "@/components/mitra-form/StepIndicator";
 import StepIdentitas from "@/components/mitra-form/StepIdentitas";
 import StepFasilitas from "@/components/mitra-form/StepFasilitas";
 import StepVerifikasi from "@/components/mitra-form/StepVerifikasi";
-import { apiRegisterMitra } from "@/lib/api";
+import { apiRegisterMitra, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { routeForRole } from "@/lib/roles";
 import { AnimatePresence, motion } from "framer-motion";
@@ -24,16 +24,25 @@ function toMin(hhmm: string): number {
 }
 function validateOpeningHours(oh: OpeningHours | undefined): string[] {
   if (!oh) return ["Jam operasional belum diisi"];
-  const days = Object.entries(oh) as [keyof OpeningHours, OpeningHours[keyof OpeningHours]][];
+  const days = Object.entries(oh) as [
+    keyof OpeningHours,
+    OpeningHours[keyof OpeningHours]
+  ][];
 
   let atLeastOneOpen = false;
   const errs: string[] = [];
 
   days.forEach(([key, day]) => {
     const labelMap: Record<string, string> = {
-      mon: "Senin", tue: "Selasa", wed: "Rabu", thu: "Kamis", fri: "Jumat", sat: "Sabtu", sun: "Minggu",
+      mon: "Senin",
+      tue: "Selasa",
+      wed: "Rabu",
+      thu: "Kamis",
+      fri: "Jumat",
+      sat: "Sabtu",
+      sun: "Minggu",
     };
-    const label = labelMap[key] || key;
+    const label = labelMap[key] || String(key);
 
     if (!day.open) return;
     atLeastOneOpen = true;
@@ -44,16 +53,38 @@ function validateOpeningHours(oh: OpeningHours | undefined): string[] {
       errs.push(`${label}: belum ada rentang jam`);
       return;
     }
-    type ParsedRange = { ok: true; s: number; e: number } | { ok: false; msg: string };
+
+    type ParsedRange =
+      | { ok: true; s: number; e: number }
+      | { ok: false; msg: string };
+
     const parsed = ranges.map((r, i) => {
       const s = toMin(r.start);
       const e = toMin(r.end);
-      if (Number.isNaN(s) || Number.isNaN(e)) return { ok: false, msg: `${label}: format jam tidak valid (range #${i + 1})` };
-      if (s >= e) return { ok: false, msg: `${label}: jam mulai harus < jam selesai (range #${i + 1})` };
+      if (Number.isNaN(s) || Number.isNaN(e))
+        return {
+          ok: false,
+          msg: `${label}: format jam tidak valid (range #${i + 1})`,
+        };
+      if (s >= e)
+        return {
+          ok: false,
+          msg: `${label}: jam mulai harus < jam selesai (range #${i + 1})`,
+        };
       return { ok: true, s, e };
     }) as ParsedRange[];
-    for (const p of parsed) if (!p.ok) { errs.push(p.msg); return; }
-    const sorted = (parsed.filter((p): p is { ok: true; s: number; e: number } => p.ok)).sort((a, b) => a.s - b.s);
+
+    for (const p of parsed) {
+      if (!p.ok) {
+        errs.push(p.msg);
+        return;
+      }
+    }
+
+    const sorted = parsed
+      .filter((p): p is { ok: true; s: number; e: number } => p.ok)
+      .sort((a, b) => a.s - b.s);
+
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].s < sorted[i - 1].e) {
         errs.push(`${label}: rentang bertabrakan (range #${i} & #${i + 1})`);
@@ -94,7 +125,12 @@ function ConfirmLeaveModal({
           <p className="text-lg font-semibold mb-1">Keluar dari pendaftaran?</p>
           <p className="text-sm text-neutral-700">
             Data belum lengkap. Jika kamu keluar sekarang
-            {targetLabel ? <> menuju <b>{targetLabel}</b></> : null}
+            {targetLabel ? (
+              <>
+                {" "}
+                menuju <b>{targetLabel}</b>
+              </>
+            ) : null}
             , perubahan bisa hilang.
           </p>
           <div className="mt-5 flex gap-3 justify-end">
@@ -117,6 +153,45 @@ function ConfirmLeaveModal({
   );
 }
 
+/**
+ * Upload logo/cover ke backend via:
+ * POST /api/cafes/:id/media
+ * field: logo / cover
+ */
+async function uploadCafeMedia(args: {
+  token: string;
+  cafeId: number;
+  logoFile?: File | null;
+  coverFile?: File | null;
+}): Promise<void> {
+  const { token, cafeId, logoFile, coverFile } = args;
+
+  if (!API_BASE) {
+    throw new Error("API_BASE kosong. Cek env NEXT_PUBLIC_API_BASE / konfigurasi API_BASE.");
+  }
+
+  const fd = new FormData();
+  if (logoFile) fd.append("logo", logoFile);
+  if (coverFile) fd.append("cover", coverFile);
+
+  // kalau tidak ada file, jangan request
+  if (![logoFile, coverFile].some(Boolean)) return;
+
+  const res = await fetch(`${API_BASE.replace(/\/+$/, "")}/api/cafes/${cafeId}/media`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // jangan set Content-Type manual untuk FormData
+    },
+    body: fd,
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || "Upload media cafe gagal");
+  }
+}
+
 export default function GabungMitraPage() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<MitraFormData>({
@@ -135,9 +210,11 @@ export default function GabungMitraPage() {
     logoPreviewUrl: null,
     galleryPreviewUrls: [],
   });
-  const [submitting, setSubmitting] = useState(false);
 
-  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(
+    null
+  );
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const pendingHrefRef = useRef<string | null>(null);
@@ -194,18 +271,36 @@ export default function GabungMitraPage() {
       form.nib ||
       form.hours ||
       (form.fasilitas && form.fasilitas.length > 0) ||
-      (form.logoFile != null) ||
+      form.logoFile != null ||
       (form.galleryFiles && form.galleryFiles.length > 0);
     return !!basic || step > 1;
   }, [form, step]);
 
   const canGoStep2 = useCallback(() => {
-    if (!form.cafe_name.trim()) { notify("Nama Coffeeshop harus diisi.", "error"); return false; }
-    if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) { notify("Email tidak valid.", "error"); return false; }
-    if (!form.phone.trim() || form.phone.replace(/\D/g, "").length < 8) { notify("Nomor HP tidak valid.", "error"); return false; }
-    if (!form.address.trim()) { notify("Alamat harus diisi.", "error"); return false; }
-    if (!form.password || form.password.length < 8) { notify("Password minimal 8 karakter.", "error"); return false; }
-    if (form.password !== form.password2) { notify("Konfirmasi password tidak sama.", "error"); return false; }
+    if (!form.cafe_name.trim()) {
+      notify("Nama Coffeeshop harus diisi.", "error");
+      return false;
+    }
+    if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) {
+      notify("Email tidak valid.", "error");
+      return false;
+    }
+    if (!form.phone.trim() || form.phone.replace(/\D/g, "").length < 8) {
+      notify("Nomor HP tidak valid.", "error");
+      return false;
+    }
+    if (!form.address.trim()) {
+      notify("Alamat harus diisi.", "error");
+      return false;
+    }
+    if (!form.password || form.password.length < 8) {
+      notify("Password minimal 8 karakter.", "error");
+      return false;
+    }
+    if (form.password !== form.password2) {
+      notify("Konfirmasi password tidak sama.", "error");
+      return false;
+    }
     return true;
   }, [form, notify]);
 
@@ -223,9 +318,10 @@ export default function GabungMitraPage() {
   }, [form.fasilitas, form.opening_hours, notify]);
 
   const handleVerifyAndRegister = useCallback(
-    async (otp?: string) => {
+    async (_otp?: string) => {
       setSubmitting(true);
       try {
+        // 1) Register dulu (baru dapat token)
         const res = await apiRegisterMitra({
           name: form.cafe_name,
           email: form.email,
@@ -236,12 +332,41 @@ export default function GabungMitraPage() {
           lat: form.lat,
           lng: form.lng,
           instagram: form.instagram,
+          // NOTE: kalau backend kamu sudah support, boleh tambahkan:
+          // opening_hours: form.opening_hours,
+          // fasilitas: form.fasilitas,
         });
 
+        // simpan token supaya request upload pakai Bearer token
         localStorage.setItem("cuppa_token", res.token);
-        await refreshMe();
 
+        // 2) Upload logo (opsional) ke cafe media
+        const cafeId =
+          typeof (res as unknown as { cafe?: { id?: number } }).cafe?.id === "number"
+            ? (res as unknown as { cafe: { id: number } }).cafe.id
+            : undefined;
+
+        if (cafeId && form.logoFile) {
+          try {
+            await uploadCafeMedia({
+              token: res.token,
+              cafeId,
+              logoFile: form.logoFile,
+            });
+          } catch (e) {
+            // kalau upload gagal, jangan gagalkan pendaftaran—tapi kasih info
+            const msg =
+              e instanceof Error
+                ? `Mitra berhasil daftar, tapi upload logo gagal: ${e.message}`
+                : "Mitra berhasil daftar, tapi upload logo gagal.";
+            notify(msg, "info");
+          }
+        }
+
+        // 3) Refresh user session & redirect
+        await refreshMe();
         setToast({ msg: "Pendaftaran mitra berhasil 🎉", kind: "success" });
+
         setTimeout(() => {
           router.replace(routeForRole(res.user.role));
         }, 300);
@@ -267,7 +392,7 @@ export default function GabungMitraPage() {
 
   useEffect(() => {
     history.pushState(null, "", location.href);
-    const handler = (e: PopStateEvent) => {
+    const handler = (_e: PopStateEvent) => {
       if (!inProgress) {
         window.removeEventListener("popstate", handler);
         history.back();
@@ -294,7 +419,7 @@ export default function GabungMitraPage() {
       if (!href || href.startsWith("#")) return;
 
       ev.preventDefault();
-      pendingHrefRef.current = a.href; 
+      pendingHrefRef.current = a.href;
       pendingBackRef.current = false;
       setConfirmOpen(true);
     };
@@ -449,6 +574,7 @@ export default function GabungMitraPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
       <AnimatePresence>
         {confirmOpen && (
           <ConfirmLeaveModal
