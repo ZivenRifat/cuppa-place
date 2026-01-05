@@ -27,10 +27,12 @@ function baseUrl(req) {
 function toPublicUrl(req, p) {
   if (!p) return null;
 
+  // kalau sudah absolute url, return as-is
   if (/^https?:\/\//i.test(p)) return p;
 
   const s = String(p).replace(/\\/g, "/");
 
+  // kalau ada accidental absolute path yg mengandung /uploads/
   const idx = s.lastIndexOf("/uploads/");
   const clean = idx >= 0 ? s.slice(idx) : s.startsWith("/") ? s : `/${s}`;
 
@@ -45,6 +47,7 @@ function normalizeCafe(req, cafeJson) {
   };
 }
 
+// fallback converter kalau masih ada yg ngirim file.path
 function toUploadsPath(p) {
   if (!p) return null;
   const s = String(p).replace(/\\/g, "/");
@@ -52,7 +55,7 @@ function toUploadsPath(p) {
   const idx = s.lastIndexOf("/uploads/");
   if (idx >= 0) return s.slice(idx); // "/uploads/..."
 
-  if (s.startsWith("uploads/")) return `/${s}`; // "/uploads/..."
+  if (s.startsWith("uploads/")) return `/${s}`;
   if (s.startsWith("/uploads/")) return s;
 
   return null;
@@ -61,6 +64,7 @@ function toUploadsPath(p) {
 exports.list = async (req, res, next) => {
   try {
     const { search, lat, lng, radius = 0, limit = 50, offset = 0 } = req.query;
+
     const where = {};
     if (search) {
       where[Op.or] = [
@@ -92,8 +96,10 @@ exports.list = async (req, res, next) => {
           : null;
         return { ...d, distance_m: dist };
       });
-      if (R > 0)
+
+      if (R > 0) {
         data = data.filter((d) => d.distance_m != null && d.distance_m <= R);
+      }
       data.sort(
         (a, b) => (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity)
       );
@@ -158,23 +164,29 @@ exports.updateMedia = async (req, res, next) => {
     }
 
     const files = req.files || {};
-    const coverFile = files.cover?.[0];
-    const logoFile = files.logo?.[0];
+    const coverFile = files.cover?.[0] || null;
+    const logoFile = files.logo?.[0] || null;
 
     if (!coverFile && !logoFile) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    if (coverFile) {
+    // ✅ pakai filename (paling stabil)
+    if (coverFile?.filename) {
+      cafe.cover_url = `/uploads/covers/${coverFile.filename}`;
+    } else if (coverFile?.path) {
+      // fallback kalau ada yg beda
       const p = toUploadsPath(coverFile.path);
       if (!p) return res.status(500).json({ message: "Invalid cover path" });
-      cafe.cover_url = p; 
+      cafe.cover_url = p;
     }
 
-    if (logoFile) {
+    if (logoFile?.filename) {
+      cafe.logo_url = `/uploads/logos/${logoFile.filename}`;
+    } else if (logoFile?.path) {
       const p = toUploadsPath(logoFile.path);
       if (!p) return res.status(500).json({ message: "Invalid logo path" });
-      cafe.logo_url = p; 
+      cafe.logo_url = p;
     }
 
     await cafe.save();

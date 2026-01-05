@@ -8,7 +8,7 @@ import StepIndicator from "@/components/mitra-form/StepIndicator";
 import StepIdentitas from "@/components/mitra-form/StepIdentitas";
 import StepFasilitas from "@/components/mitra-form/StepFasilitas";
 import StepVerifikasi from "@/components/mitra-form/StepVerifikasi";
-import { apiRegisterMitra,apiMyLatestCafe, apiUploadCafeMedia, API_BASE } from "@/lib/api";
+import { apiRegisterMitra, apiUploadCafeMedia } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { routeForRole } from "@/lib/roles";
 import { AnimatePresence, motion } from "framer-motion";
@@ -167,6 +167,7 @@ async function uploadCafeMedia(args: {
 }): Promise<void> {
   const { token, cafeId, logoFile, coverFile } = args;
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
   if (!API_BASE) {
     throw new Error("API_BASE kosong. Cek env NEXT_PUBLIC_API_BASE / konfigurasi API_BASE.");
   }
@@ -319,10 +320,11 @@ export default function GabungMitraPage() {
   }, [form.fasilitas, form.opening_hours, notify]);
 
   const handleVerifyAndRegister = useCallback(
+    /* eslint-disable  @typescript-eslint/no-explicit-any */
     async (_otp?: string) => {
       setSubmitting(true);
       try {
-        // 1) register
+        // 1) register (backend return { token, user, cafe:{id,...} })
         const res = await apiRegisterMitra({
           name: form.cafe_name,
           email: form.email,
@@ -333,38 +335,37 @@ export default function GabungMitraPage() {
           lat: form.lat,
           lng: form.lng,
           instagram: form.instagram,
+          // kalau kamu mau kirim opening_hours juga bisa tambahin di backend update
+          // opening_hours: form.opening_hours,
         });
 
-        // token sudah disimpan oleh apiRegisterMitra() via setAuthToken()
-
-        // 2) ambil cafe terbaru milik user (yang baru dibuat)
-        const latestCafe = await apiMyLatestCafe();
-
-        // 3) upload logo/cover kalau ada
-        if (latestCafe?.id) {
-          try {
-            await apiUploadCafeMedia(latestCafe.id, {
-              logo: form.logoFile ?? null,
-              // cover: form.coverFile ?? null, // kalau suatu saat kamu punya coverFile
-            });
-          } catch (e) {
-            const msg =
-              e instanceof Error
-                ? `Daftar berhasil, tapi upload logo gagal: ${e.message}`
-                : "Daftar berhasil, tapi upload logo gagal.";
-            notify(msg, "info");
-          }
+        const cafeId = (res as { cafe?: { id?: number } })?.cafe?.id; // kalau types kamu belum lengkap
+        if (!cafeId) {
+          notify("Daftar berhasil, tapi cafe id tidak ditemukan dari response register.", "info");
         } else {
-          // ini kejadian kalau register sukses tapi cafe belum bisa kebaca
-          notify("Daftar berhasil, tapi cafe tidak ditemukan untuk upload logo.", "info");
+          // 2) upload logo/cover setelah register (pakai cafeId dari response!)
+          if (form.logoFile || (form as any).coverFile) {
+            try {
+              await apiUploadCafeMedia(cafeId, {
+                logo: form.logoFile ?? null,
+                cover: (form as any).coverFile ?? null, // kalau belum ada di form, ini aman
+              });
+            } catch (e) {
+              const msg =
+                e instanceof Error
+                  ? `Daftar berhasil, tapi upload media gagal: ${e.message}`
+                  : "Daftar berhasil, tapi upload media gagal.";
+              notify(msg, "info");
+            }
+          }
         }
 
-        // 4) refresh & redirect
+        // 3) refresh & redirect
         await refreshMe();
         setToast({ msg: "Pendaftaran mitra berhasil 🎉", kind: "success" });
 
         setTimeout(() => {
-          router.replace(routeForRole(res.user.role));
+          router.replace(routeForRole((res as any).user.role));
         }, 300);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Registrasi mitra gagal";
@@ -375,6 +376,7 @@ export default function GabungMitraPage() {
     },
     [form, refreshMe, router, notify]
   );
+
 
 
   useEffect(() => {

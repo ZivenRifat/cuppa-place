@@ -79,5 +79,7 @@ app.use((err, req, res, next) => {
     ...(process.env.NODE_ENV !== "production" ? { stack: err.stack } : {}),
   });
 });
+app.set("trust proxy", 1);
+
 
 module.exports = app;

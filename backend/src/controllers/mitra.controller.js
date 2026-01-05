@@ -1,9 +1,31 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { sequelize, User, Cafe } = require('../models');
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// backend/src/controllers/mitra.controller.js
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { sequelize, User, Cafe } = require("../models");
 
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+
+function baseUrl(req) {
+  const envBase = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+  if (envBase) return envBase;
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function toPublicUrl(req, p) {
+  if (!p) return null;
+  if (/^https?:\/\//i.test(p)) return p;
+  const path = p.startsWith("/") ? p : `/${p}`;
+  return `${baseUrl(req)}${path}`;
+}
+
+function normalizeCafe(req, cafeJson) {
+  return {
+    ...cafeJson,
+    cover_url: cafeJson.cover_url ? toPublicUrl(req, cafeJson.cover_url) : null,
+    logo_url: cafeJson.logo_url ? toPublicUrl(req, cafeJson.logo_url) : null,
+  };
+}
 
 async function registerMitra(req, res) {
   const t = await sequelize.transaction();
@@ -21,27 +43,38 @@ async function registerMitra(req, res) {
     } = req.body || {};
 
     if (!name || !email || !password || !cafe_name) {
-      return res.status(400).json({ message: 'Data tidak lengkap.' });
+      await t.rollback();
+      return res.status(400).json({ message: "Data tidak lengkap." });
     }
 
     const existed = await User.findOne({ where: { email } });
     if (existed) {
-      return res.status(409).json({ message: 'Email sudah terdaftar.' });
+      await t.rollback();
+      return res.status(409).json({ message: "Email sudah terdaftar." });
     }
 
+    // file dari multer (optional)
+    const files = req.files || {};
+    const logoFile = files.logo?.[0] || null;
+    const coverFile = files.cover?.[0] || null;
+
+    // SIMPAN RELATIVE PATH (JANGAN simpan file.path absolute)
+    const logoRel = logoFile?.filename ? `/uploads/logos/${logoFile.filename}` : null;
+    const coverRel = coverFile?.filename ? `/uploads/covers/${coverFile.filename}` : null;
+
     const hash = await bcrypt.hash(password, 10);
+
     const user = await User.create(
       {
         name,
         email,
         password_hash: hash,
         phone: phone || null,
-        role: 'mitra',
+        role: "mitra",
       },
       { transaction: t }
     );
 
-    // cafe milik user tsb
     const cafe = await Cafe.create(
       {
         name: cafe_name,
@@ -50,6 +83,8 @@ async function registerMitra(req, res) {
         lng: lng ?? null,
         instagram: instagram || null,
         owner_id: user.id,
+        logo_url: logoRel,
+        cover_url: coverRel,
       },
       { transaction: t }
     );
@@ -71,22 +106,19 @@ async function registerMitra(req, res) {
         role: user.role,
         phone: user.phone,
       },
-      cafe: {
-        id: cafe.id,
-        name: cafe.name,
-      },
+      cafe: normalizeCafe(req, cafe.toJSON()),
     });
   } catch (err) {
     await t.rollback();
-    console.error('registerMitra error:', err);
-    return res.status(500).json({ message: 'Gagal mendaftarkan mitra.' });
+    console.error("registerMitra error:", err);
+    return res.status(500).json({ message: "Gagal mendaftarkan mitra." });
   }
 }
 
 async function getMitraDashboard(req, res) {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const cafes = await Cafe.findAll({ where: { owner_id: userId } });
 
@@ -97,13 +129,13 @@ async function getMitraDashboard(req, res) {
       review_count: 320,
       favorites: 89,
       series_daily: [
-        { name: 'Senin', value: 30 },
-        { name: 'Selasa', value: 50 },
-        { name: 'Rabu', value: 35 },
-        { name: 'Kamis', value: 55 },
-        { name: 'Jumat', value: 45 },
-        { name: 'Sabtu', value: 60 },
-        { name: 'Minggu', value: 60 },
+        { name: "Senin", value: 30 },
+        { name: "Selasa", value: 50 },
+        { name: "Rabu", value: 35 },
+        { name: "Kamis", value: 55 },
+        { name: "Jumat", value: 45 },
+        { name: "Sabtu", value: 60 },
+        { name: "Minggu", value: 60 },
       ],
     };
 
@@ -123,15 +155,12 @@ async function getMitraDashboard(req, res) {
       visitors: metrics.series_daily,
       recommendations: cafes.length
         ? cafes.map((c) => `Promosikan ${c.name} dengan diskon spesial minggu ini`)
-        : ['Belum ada data cukup, mulai kumpulkan transaksi dan ulasan.'],
+        : ["Belum ada data cukup, mulai kumpulkan transaksi dan ulasan."],
     });
   } catch (err) {
-    console.error('getMitraDashboard error:', err);
-    return res.status(500).json({ message: 'Gagal memuat dashboard.' });
+    console.error("getMitraDashboard error:", err);
+    return res.status(500).json({ message: "Gagal memuat dashboard." });
   }
 }
 
-module.exports = {
-  registerMitra,
-  getMitraDashboard,
-};
+module.exports = { registerMitra, getMitraDashboard };

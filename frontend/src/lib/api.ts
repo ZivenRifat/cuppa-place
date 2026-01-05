@@ -263,11 +263,31 @@ export async function apiRegisterMitra(payload: {
   lng?: number;
   instagram?: string;
   opening_hours?: unknown;
+  logo?: File | null;
+  cover?: File | null;
 }) {
+  const fd = new FormData();
+  fd.append("name", payload.name);
+  fd.append("email", payload.email);
+  fd.append("password", payload.password);
+  if (payload.phone) fd.append("phone", payload.phone);
+
+  fd.append("cafe_name", payload.cafe_name);
+  if (payload.address) fd.append("address", payload.address);
+  if (payload.lat != null) fd.append("lat", String(payload.lat));
+  if (payload.lng != null) fd.append("lng", String(payload.lng));
+  if (payload.instagram) fd.append("instagram", payload.instagram);
+  if (payload.opening_hours != null) {
+    fd.append("opening_hours", JSON.stringify(payload.opening_hours));
+  }
+
+  if (payload.logo) fd.append("logo", payload.logo);
+  if (payload.cover) fd.append("cover", payload.cover);
+
   const resp = await request<AuthResp>(`/api/mitra/register`, {
     method: "POST",
     auth: false,
-    body: JSON.stringify(payload),
+    body: fd,
   });
 
   const token = extractToken(resp);
@@ -275,6 +295,7 @@ export async function apiRegisterMitra(payload: {
 
   return resp;
 }
+
 
 export async function apiMitraDashboard() {
   return request<MitraDashboardResp>(`/api/mitra/dashboard`, {
