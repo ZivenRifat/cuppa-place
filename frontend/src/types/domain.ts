@@ -25,22 +25,29 @@ export interface MeResp {
 export interface Cafe {
   id: number;
   name: string;
-  slug: string;
+  slug?: string | null;
+
   description?: string | null;
   address?: string | null;
 
-  // Sequelize DECIMAL kadang balik string → izinkan number|string|null
+  // Sequelize DECIMAL kadang balik string
   lat?: number | string | null;
   lng?: number | string | null;
 
   phone?: string | null;
   instagram?: string | null;
   opening_hours?: Record<string, string> | null;
+
+  /** media */
   cover_url?: string | null;
+  logo_url?: string | null;   // ✅ TAMBAH
+  photo_url?: string | null;  // ✅ TAMBAH (legacy / fallback)
+
   owner?: Pick<User, "id" | "name">;
 
   distance_m?: number;
 }
+
 
 export interface MenuItem {
   id: number;

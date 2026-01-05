@@ -18,7 +18,7 @@ export default function CafeSection() {
     (async () => {
       try {
         setLoading(true);
-        const res = await apiListCafes(); // { total, data }
+        const res = await apiListCafes(); 
         if (!mounted) return;
         setCafes(res.data ?? []);
       } catch {
@@ -41,7 +41,6 @@ export default function CafeSection() {
         Rekomendasi untuk Kamu
       </h2>
 
-      {/* Grid persis seperti versi lama */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-20 justify-items-center">
         {loading && [0, 1, 2].map((i) => <SkeletonCard key={i} />)}
         {!loading &&
@@ -72,49 +71,41 @@ function AllCafesButton() {
   );
 }
 
-/**
- * Normalisasi URL gambar cafe:
- * - Kalau sudah http/https → pakai apa adanya
- * - Kalau relatif → sambung ke API_BASE (http://localhost:4000 + /uploads/...)
- * - Kalau API_BASE kosong → treat sebagai path publik Next (/something.jpg)
- */
 function resolveCafeImage(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const src = raw.trim();
   if (!src) return null;
 
-  // sudah absolute URL
   if (src.startsWith("http://") || src.startsWith("https://")) {
     return src;
   }
 
-  // kalau kita punya API_BASE, sambungkan
   if (API_BASE) {
     const base = API_BASE.replace(/\/+$/, "");
     const path = src.startsWith("/") ? src : `/${src}`;
     return `${base}${path}`;
   }
 
-  // fallback: treat sebagai public path
   return src.startsWith("/") ? src : `/${src}`;
 }
 
 function CafeCard({ cafe }: { cafe: Cafe }) {
   const router = useRouter();
+  const cover = resolveCafeImage(cafe.cover_url);
+  const logo = resolveCafeImage(cafe.logo_url);
+  const photo = resolveCafeImage(cafe.photo_url);
+
 
   const baseImages: string[] = [];
-  const cover = resolveCafeImage(
-    (cafe as { cover_url?: string; photo_url?: string }).cover_url ||
-    (cafe as { cover_url?: string; photo_url?: string }).photo_url
-  );
-
   if (cover) baseImages.push(cover);
+  else if (logo) baseImages.push(logo);
+  else if (photo) baseImages.push(photo);
 
   // fallback ke gambar lokal yang PASTI ada
   const placeholder = "/img/login/LoginPage.jpg";
 
   const images = baseImages.length > 0 ? baseImages : [placeholder];
-  const imagesExtended = [...images, images[0]]; // agar loop mulus seperti versi lama
+  const imagesExtended = [...images, images[0]];
 
   const [idx, setIdx] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(true);
@@ -152,13 +143,11 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
 
   return (
     <div className="relative w-[280px] sm:w-[300px] md:w-[350px] rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all bg-white border border-gray-200 group">
-      {/* ===== Gambar + Overlay ===== */}
       <div
         className="relative w-full h-[380px] overflow-hidden cursor-pointer"
         onMouseEnter={() => setHoverImage(true)}
         onMouseLeave={() => setHoverImage(false)}
       >
-        {/* Carousel Slide */}
         <div
           ref={slideRef}
           className={`flex ${isTransitioning ? "transition-transform" : ""}`}
@@ -221,10 +210,8 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
           rel="noopener noreferrer"
           className="group/location relative flex items-center justify-center w-full transition-all duration-500"
         >
-          {/* Hover Background */}
           <div className="w-80 h-10 absolute inset-0 rounded-xl bg-transparent group-hover/location:bg-[#271F01] transition-all duration-500"></div>
 
-          {/* Wrapper konten */}
           <div className="flex items-center justify-center gap-2 z-10 py-1">
             <MapPin className="w-8 h-8 text-[#4b3b09] transition-all duration-500 group-hover/location:translate-x-[-24px] group-hover/location:text-white" />
 
@@ -233,7 +220,6 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
             </span>
           </div>
 
-          {/* Hover Text */}
           <span className="absolute z-10 justify-center text-white font-bold text-[16px] opacity-0 group-hover/location:opacity-100 transition-all duration-500 translate-y-2 group-hover/location:translate-y-0">
             Buka di Google Maps
           </span>
