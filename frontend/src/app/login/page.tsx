@@ -4,9 +4,35 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Slideshow from "@/components/SlideShow";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
-import { canAccess, routeForRole } from "@/lib/roles";
 import Link from "next/link";
+
+import { canAccess, routeForRole } from "@/lib/roles";
+import type { Role } from "@/types/domain";
+
+import { apiLogin, setAuthToken, API_BASE } from "@/lib/api";
+
+type LoginRespLike = {
+  token?: string;
+  access_token?: string;
+  data?: { token?: string; access_token?: string };
+  user?: { role?: Role | string };
+  message?: string;
+};
+
+function extractToken(resp: LoginRespLike): string | undefined {
+  return (
+    resp.token ??
+    resp.access_token ??
+    resp.data?.token ??
+    resp.data?.access_token
+  );
+}
+
+function normalizeRole(raw: Role | string | undefined): Role | undefined {
+  // Sesuaikan ini kalau Role di domain punya value lain
+  if (raw === "user" || raw === "mitra" || raw === "admin") return raw;
+  return undefined;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,7 +41,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [nextPath, setNextPath] = useState<string>("/");
 
-  // 🔥 Baca query ?next=
   useEffect(() => {
     const qs = new URLSearchParams(window.location.search);
     setNextPath(qs.get("next") || "/");
@@ -25,29 +50,28 @@ export default function LoginPage() {
     e.preventDefault();
 
     try {
-      const res = await fetch("http://localhost:4000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-        }),
-      });
-
-      const data = await res.json();
-      console.log("LOGIN RESPONSE:", data);
-
-      if (!res.ok) {
-        throw new Error(data.message || "Login gagal");
+      if (!API_BASE) {
+        throw new Error(
+          "NEXT_PUBLIC_API_BASE belum di-set. Harusnya: https://cuppaplace.web.id"
+        );
       }
 
-      // ✅ SIMPAN TOKEN KE COOKIE (SOURCE OF TRUTH)
-      document.cookie = `cuppa_token=${data.token}; path=/; max-age=86400`;
+      const resp = (await apiLogin({
+        email: email.trim(),
+        password,
+      })) as unknown as LoginRespLike;
 
-      // 🔥 Trigger Navbar update
+      const token = extractToken(resp);
+      if (!token) throw new Error("Token tidak ditemukan dari response login.");
+
+      setAuthToken(token);
+
+      // opsional: kalau ada bagian app yang masih baca cookie
+      document.cookie = `cuppa_token=${token}; path=/; max-age=86400; SameSite=Lax; Secure`;
+
       window.dispatchEvent(new Event("auth-update"));
 
-      const role = data.user.role;
+      const role = normalizeRole(resp.user?.role);
       const preferred = nextPath || "/";
 
       const allowedPath =
