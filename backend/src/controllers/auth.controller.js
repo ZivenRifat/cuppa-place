@@ -194,13 +194,17 @@ exports.forgotPassword = async (req, res, next) => {
       expires_at: expiresAt,
     });
 
-    const frontendBase =
-      process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
-    const resetUrl = `${frontendBase}/reset-password?token=${encodeURIComponent(
-      token
-    )}`;
+    const frontendBaseRaw =
+      process.env.FRONTEND_URL ||
+      process.env.FRONTEND_BASE_URL ||
+      "https://cuppaplace.web.id";
 
-    console.log('[forgotPassword] resetUrl =', resetUrl);
+    const frontendBase = String(frontendBaseRaw).replace(/\/+$/, ""); // trim trailing "/"
+
+    const resetPath = process.env.RESET_PASSWORD_PATH || "/reset-password";
+
+    const resetUrl = `${frontendBase}${resetPath}?token=${encodeURIComponent(token)}`;
+
 
     try {
       await sendMail({
