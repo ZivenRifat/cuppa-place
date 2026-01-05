@@ -1,64 +1,89 @@
-const path = require("path");
+// backend/src/controllers/upload.controller.js
 const fs = require("fs");
+const path = require("path");
 
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+function ensureDir(p) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-function baseUrl(req) {
-  const envBase = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
-  if (envBase) return envBase;
-  // fallback kalau env belum di-set
-  return `${req.protocol}://${req.get("host")}`;
-}
-
-function toUrl(req, relOrAbsPath) {
-  if (!relOrAbsPath) return null;
-
-  // kalau sudah absolute
-  if (/^https?:\/\//i.test(relOrAbsPath)) return relOrAbsPath;
-
-  // pastikan dia jadi "/uploads/...."
-  const p = relOrAbsPath.startsWith("/") ? relOrAbsPath : `/${relOrAbsPath}`;
-  return `${baseUrl(req)}${p}`;
-}
-
-exports.ensureUploadRoot = function (root) {
-  ensureDir(root);
-  ensureDir(path.join(root, "logos"));
-  ensureDir(path.join(root, "covers"));
-  ensureDir(path.join(root, "gallery"));
-  ensureDir(path.join(root, "tmp"));
+exports.ensureUploadRoot = (rootAbs) => {
+  ensureDir(rootAbs);
+  ensureDir(path.join(rootAbs, "logos"));
+  ensureDir(path.join(rootAbs, "covers"));
+  ensureDir(path.join(rootAbs, "gallery"));
+  ensureDir(path.join(rootAbs, "tmp"));
 };
 
-exports.afterSingle = (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "No file" });
+function toPublicPath(filePath) {
+  // filePath bisa: "uploads/logos/abc.png" atau absolute
+  // kita normalisasi jadi "/uploads/...."
+  const norm = String(filePath).replace(/\\/g, "/");
 
-  // req.file.path contoh: "uploads/logos/abc.jpg"
-  const rel = req.file.path.replace(/\\/g, "/");
-  const urlPath = `/${rel}`; // "/uploads/logos/abc.jpg"
-  const url = toUrl(req, urlPath); // absolute
+  // cari posisi "/uploads/" atau "uploads/"
+  const idx = norm.lastIndexOf("/uploads/");
+  if (idx >= 0) return norm.slice(idx); // sudah ada leading "/"
+
+  const idx2 = norm.lastIndexOf("uploads/");
+  if (idx2 >= 0) return "/" + norm.slice(idx2);
+
+  // fallback (paling aman jangan expose absolute path)
+  return null;
+}
+
+function getBaseUrl(req) {
+  // supaya https kebaca benar di balik Cloudflare / reverse proxy
+  const proto =
+    (req.headers["x-forwarded-proto"] || req.protocol || "http")
+      .toString()
+      .split(",")[0]
+      .trim();
+
+  const host = req.headers["x-forwarded-host"] || req.get("host");
+  return `${proto}://${host}`;
+}
+
+exports.afterSingle = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No file uploaded" });
+  }
+
+  const publicPath = toPublicPath(req.file.path);
+  if (!publicPath) {
+    return res.status(500).json({ message: "Cannot build public path" });
+  }
+
+  const base = getBaseUrl(req);
 
   return res.status(201).json({
-    url,      // absolute (disarankan)
-    path: urlPath, // relative path (kalau butuh simpan ke DB)
+    url: `${base}${publicPath}`, // ✅ https://cuppaplace.web.id/uploads/logos/xxx.png
+    path: publicPath,           // ✅ /uploads/logos/xxx.png
+    filename: req.file.filename,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
   });
 };
 
-exports.afterMultiple = (req, res) => {
-  if (!req.files || !req.files.length)
-    return res.status(400).json({ message: "No files" });
+exports.afterMultiple = async (req, res) => {
+  const files = req.files || [];
+  if (!Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({ message: "No files uploaded" });
+  }
 
-  const urls = req.files.map((f) => {
-    const rel = f.path.replace(/\\/g, "/");
-    const urlPath = `/${rel}`;
-    return toUrl(req, urlPath);
-  });
+  const base = getBaseUrl(req);
 
-  const paths = req.files.map((f) => `/${f.path.replace(/\\/g, "/")}`);
+  const items = files
+    .map((f) => {
+      const publicPath = toPublicPath(f.path);
+      if (!publicPath) return null;
+      return {
+        url: `${base}${publicPath}`,
+        path: publicPath,
+        filename: f.filename,
+        mimetype: f.mimetype,
+        size: f.size,
+      };
+    })
+    .filter(Boolean);
 
-  return res.status(201).json({
-    urls,  // absolute
-    paths, // relative
-  });
+  return res.status(201).json({ files: items });
 };
