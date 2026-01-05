@@ -4,7 +4,7 @@ export interface Review {
   rating: number;
   comment: string;
   date: string;
-  avatar?: string; 
+  avatar?: string;
 }
 
 export interface MenuItem {
@@ -21,6 +21,6 @@ export interface CoffeeShop {
   rating: number;
   openHours: string;
   images: string[];
-  menus: any; 
+  menus: MenuItem[];   
   reviews: Review[];
 }
