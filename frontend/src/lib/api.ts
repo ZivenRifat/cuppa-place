@@ -365,6 +365,30 @@ export async function apiMyCafes() {
     auth: true,
   });
 }
+export async function apiUploadCafeMedia(
+  cafeId: number | string,
+  payload: { logo?: File | null; cover?: File | null }
+) {
+  const fd = new FormData();
+  if (payload.logo) fd.append("logo", payload.logo);
+  if (payload.cover) fd.append("cover", payload.cover);
+
+  // kalau tidak ada file, tidak usah request
+  if (!payload.logo && !payload.cover) {
+    return null;
+  }
+
+  return requestMultipart(`/api/cafes/${cafeId}/media`, fd, { auth: true });
+}
+
+export async function apiMyLatestCafe() {
+  const res = await apiMyCafes(); // { data: Cafe[] }
+  const cafes = res.data ?? [];
+  if (cafes.length === 0) return null;
+  const latest = [...cafes].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+  return latest ?? null;
+}
+
 
 // =================== MENU ===================
 

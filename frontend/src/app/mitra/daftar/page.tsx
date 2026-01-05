@@ -8,7 +8,7 @@ import StepIndicator from "@/components/mitra-form/StepIndicator";
 import StepIdentitas from "@/components/mitra-form/StepIdentitas";
 import StepFasilitas from "@/components/mitra-form/StepFasilitas";
 import StepVerifikasi from "@/components/mitra-form/StepVerifikasi";
-import { apiRegisterMitra, API_BASE } from "@/lib/api";
+import { apiRegisterMitra,apiMyLatestCafe, apiUploadCafeMedia, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { routeForRole } from "@/lib/roles";
 import { AnimatePresence, motion } from "framer-motion";
@@ -16,6 +16,7 @@ import { CheckCircle, XCircle, Info } from "lucide-react";
 
 import type { OpeningHours, MitraFormData } from "@/types/mitra";
 import { DEFAULT_OPENING_HOURS } from "@/types/mitra";
+
 
 function toMin(hhmm: string): number {
   const [h, m] = hhmm.split(":").map((x) => parseInt(x, 10));
@@ -321,7 +322,7 @@ export default function GabungMitraPage() {
     async (_otp?: string) => {
       setSubmitting(true);
       try {
-        // 1) Register dulu (baru dapat token)
+        // 1) register
         const res = await apiRegisterMitra({
           name: form.cafe_name,
           email: form.email,
@@ -332,38 +333,33 @@ export default function GabungMitraPage() {
           lat: form.lat,
           lng: form.lng,
           instagram: form.instagram,
-          // NOTE: kalau backend kamu sudah support, boleh tambahkan:
-          // opening_hours: form.opening_hours,
-          // fasilitas: form.fasilitas,
         });
 
-        // simpan token supaya request upload pakai Bearer token
-        localStorage.setItem("cuppa_token", res.token);
+        // token sudah disimpan oleh apiRegisterMitra() via setAuthToken()
 
-        // 2) Upload logo (opsional) ke cafe media
-        const cafeId =
-          typeof (res as unknown as { cafe?: { id?: number } }).cafe?.id === "number"
-            ? (res as unknown as { cafe: { id: number } }).cafe.id
-            : undefined;
+        // 2) ambil cafe terbaru milik user (yang baru dibuat)
+        const latestCafe = await apiMyLatestCafe();
 
-        if (cafeId && form.logoFile) {
+        // 3) upload logo/cover kalau ada
+        if (latestCafe?.id) {
           try {
-            await uploadCafeMedia({
-              token: res.token,
-              cafeId,
-              logoFile: form.logoFile,
+            await apiUploadCafeMedia(latestCafe.id, {
+              logo: form.logoFile ?? null,
+              // cover: form.coverFile ?? null, // kalau suatu saat kamu punya coverFile
             });
           } catch (e) {
-            // kalau upload gagal, jangan gagalkan pendaftaran—tapi kasih info
             const msg =
               e instanceof Error
-                ? `Mitra berhasil daftar, tapi upload logo gagal: ${e.message}`
-                : "Mitra berhasil daftar, tapi upload logo gagal.";
+                ? `Daftar berhasil, tapi upload logo gagal: ${e.message}`
+                : "Daftar berhasil, tapi upload logo gagal.";
             notify(msg, "info");
           }
+        } else {
+          // ini kejadian kalau register sukses tapi cafe belum bisa kebaca
+          notify("Daftar berhasil, tapi cafe tidak ditemukan untuk upload logo.", "info");
         }
 
-        // 3) Refresh user session & redirect
+        // 4) refresh & redirect
         await refreshMe();
         setToast({ msg: "Pendaftaran mitra berhasil 🎉", kind: "success" });
 
@@ -379,6 +375,7 @@ export default function GabungMitraPage() {
     },
     [form, refreshMe, router, notify]
   );
+
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
