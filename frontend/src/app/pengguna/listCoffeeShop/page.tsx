@@ -20,7 +20,6 @@ type UiCafeCard = {
 };
 
 function pickImage(cafe: Cafe): string {
-  // prioritas cover -> logo -> fallback
   const cover = (cafe as unknown as { cover_url?: string | null }).cover_url ?? null;
   const logo = (cafe as unknown as { logo_url?: string | null }).logo_url ?? null;
   return cover || logo || "/img/home/bg-section.jpg";
@@ -68,12 +67,11 @@ export default function CoffeeShopPage() {
 
   const cards: UiCafeCard[] = useMemo(() => {
     return (items ?? []).map((c) => {
-      const address = (c.address ?? "").toString();
       return {
         id: Number(c.id),
         name: c.name ?? "Coffeeshop",
-        location: address || "Alamat belum diisi",
-        // kalau backend kamu belum ada rating/reviews di table cafe, set default
+        location: (c.address ?? "Alamat belum diisi").toString(),
+        // sementara backend belum punya rating+count, aman 0
         rating: Number((c as unknown as { avg_rating?: number }).avg_rating ?? 0),
         reviews: Number((c as unknown as { review_count?: number }).review_count ?? 0),
         category: "Coffee Shop",
@@ -88,6 +86,8 @@ export default function CoffeeShopPage() {
       <div className="fixed top-0 left-0 w-full z-50">
         <Navbar />
       </div>
+
+      {/* CONTENT */}
       <main className="flex-1 pt-[115px] max-w-6xl mx-auto w-full px-4">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
@@ -98,6 +98,8 @@ export default function CoffeeShopPage() {
               Temukan coffee shop terbaik yang kamu inginkan!!!
             </p>
           </div>
+
+          {/* SEARCH */}
           <div className="w-full md:w-[360px]">
             <label className="text-xs text-gray-600 mb-1 block">Cari coffeeshop</label>
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
@@ -111,6 +113,8 @@ export default function CoffeeShopPage() {
             </div>
           </div>
         </div>
+
+        {/* STATES */}
         {loading ? (
           <div className="py-10">
             <p className="text-center text-sm text-gray-500">Memuat daftar coffeeshop...</p>
@@ -130,11 +134,22 @@ export default function CoffeeShopPage() {
         ) : (
           <div className="space-y-6 mb-10 mt-6">
             {cards.map((shop) => (
-              <CoffeeShopCard key={shop.id} {...shop} />
+              <CoffeeShopCard
+                key={shop.id}
+                id={shop.id}
+                name={shop.name}
+                img={shop.img}
+                location={shop.location}
+                rating={shop.rating}
+                reviews={shop.reviews}
+                category={shop.category}
+              />
             ))}
           </div>
         )}
       </main>
+
+      {/* SLIDESHOW FULL WIDTH DI PALING BAWAH */}
       <div>
         <SlideShow />
       </div>

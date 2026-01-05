@@ -1,6 +1,11 @@
+// frontend/src/components/CoffeeShopCard.tsx
+"use client";
+
 import { MapPin, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type Props = {
+  id: number | string;
   name: string;
   img: string;
   location: string;
@@ -10,6 +15,7 @@ type Props = {
 };
 
 export default function CoffeeShopCard({
+  id,
   name,
   img,
   location,
@@ -17,10 +23,27 @@ export default function CoffeeShopCard({
   reviews,
   category,
 }: Props) {
+  const router = useRouter();
+
+  const goDetail = () => {
+    router.push(`/pengguna/coffeeshop/${id}`);
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex overflow-hidden">
       {/* IMAGE */}
-      <img src={img} alt={name} className="w-[320px] h-[190px] object-cover" />
+      <img
+        src={img}
+        alt={name}
+        className="w-[320px] h-[190px] object-cover"
+        loading="lazy"
+        onError={(e) => {
+          // fallback kalau url gambar error
+          const el = e.currentTarget;
+          if (el.src.includes("/img/home/bg-section.jpg")) return;
+          el.src = "/img/home/bg-section.jpg";
+        }}
+      />
 
       {/* CONTENT */}
       <div className="flex flex-col justify-between p-5 w-full">
@@ -33,7 +56,7 @@ export default function CoffeeShopCard({
 
           <div className="flex items-center gap-3 text-sm mt-3">
             <span className="flex items-center gap-1 text-yellow-500 font-medium">
-              <Star size={16} /> {rating}
+              <Star size={16} /> {Number.isFinite(rating) ? rating : 0}
             </span>
             <span className="text-gray-600">{category}</span>
             <span className="text-gray-500">{reviews} Ulasan</span>
@@ -42,8 +65,10 @@ export default function CoffeeShopCard({
 
         {/* ACTION BUTTONS */}
         <div className="flex gap-3 mt-5">
-
-          <button className="px-5 py-2 rounded-full border bg-[#2b210a] text-white hover:bg-gray-100 transition">
+          <button
+            onClick={goDetail}
+            className="px-5 py-2 rounded-full border bg-[#2b210a] text-white hover:bg-[#3C3110] transition"
+          >
             Lihat Detail
           </button>
         </div>
