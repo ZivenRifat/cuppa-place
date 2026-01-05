@@ -40,8 +40,8 @@ export interface Cafe {
 
   /** media */
   cover_url?: string | null;
-  logo_url?: string | null;   // ✅ TAMBAH
-  photo_url?: string | null;  // ✅ TAMBAH (legacy / fallback)
+  logo_url?: string | null;   
+  photo_url?: string | null;  
 
   owner?: Pick<User, "id" | "name">;
 
