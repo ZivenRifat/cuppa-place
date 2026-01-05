@@ -46,10 +46,9 @@ app.use(morgan("dev"));
  * URL publik: http://localhost:4000/uploads/namafile.jpg
  * Pastikan folder uploads ada.
  */
-app.use(
-  "/uploads",
-  express.static(path.resolve(process.cwd(), "uploads"), { maxAge: "7d" })
-);
+const uploadsDir = path.resolve(__dirname, "..", "uploads");
+
+app.use("/uploads", express.static(uploadsDir, { maxAge: "7d" }));
 
 // health check
 app.get("/api/health", (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
