@@ -5,33 +5,115 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, ArrowLeft } from "lucide-react";
-import {
-  apiCafeDetail,
-  apiCafeMenu,
-  apiListCafes,
-} from "@/lib/api";
+import { apiCafeDetail, apiCafeMenu, apiListCafes } from "@/lib/api";
 import type { Cafe, MenuItem } from "@/types/domain";
 
-type Props = {
-  params: { slug: string };
-};
+type Props = { params: { slug: string } };
+
+// parse DECIMAL string → number | null
+function toNum(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function slugify(s: string): string {
+  return String(s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function pickImage(cafe: Cafe): string {
+  const cover = cafe.cover_url ?? null;
+  const g0 = cafe.galleries?.[0]?.image_url ?? null;
+  const logo = cafe.logo_url ?? null;
+  return cover || g0 || logo || "/img/home/bg-section.jpg";
+}
+
+function trimAt(v: string) {
+  return v
+    .replace(/^@/, "")
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/\/$/, "");
+}
+
+// opening_hours formatter yang support 2 format:
+// 1) map string: { mon: "08:00-22:00" }
+// 2) object kompleks: { mon: { open, allDay, ranges:[{start,end}] } }
+function formatOpeningHours(oh: unknown): string {
+  if (!oh || typeof oh !== "object") return "—";
+
+  const rec = oh as Record<string, unknown>;
+  const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+  const labelMap: Record<string, string> = {
+    mon: "Sen",
+    tue: "Sel",
+    wed: "Rab",
+    thu: "Kam",
+    fri: "Jum",
+    sat: "Sab",
+    sun: "Min",
+  };
+
+  const parts: string[] = [];
+
+  for (const d of dayOrder) {
+    const v = rec[d];
+
+    // format string map
+    if (typeof v === "string" && v.trim()) {
+      parts.push(`${labelMap[d]} ${v.trim()}`);
+      continue;
+    }
+
+    // format kompleks
+    if (v && typeof v === "object") {
+      const day = v as {
+        open?: boolean;
+        allDay?: boolean;
+        ranges?: { start?: string; end?: string }[];
+      };
+
+      if (!day.open) {
+        // kalau kamu mau tampil "Tutup", uncomment:
+        // parts.push(`${labelMap[d]} Tutup`);
+        continue;
+      }
+
+      if (day.allDay) {
+        parts.push(`${labelMap[d]} 24 Jam`);
+        continue;
+      }
+
+      const ranges = Array.isArray(day.ranges) ? day.ranges : [];
+      if (ranges.length) {
+        const txt = ranges
+          .map((r) => `${r.start ?? "?"}-${r.end ?? "?"}`)
+          .join(", ");
+        parts.push(`${labelMap[d]} ${txt}`);
+      }
+    }
+  }
+
+  if (parts.length === 0) return "—";
+  // biar ringkas: tampilkan max 3, sisanya "+n"
+  const head = parts.slice(0, 3);
+  const more = parts.length > 3 ? `, +${parts.length - 3} hari` : "";
+  return head.join(", ") + more;
+}
 
 export default function CafeDetailPage({ params }: Props) {
   const router = useRouter();
-  const { slug } = params;
+  const slug = params.slug;
 
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-
-  // helper parse DECIMAL string → number | null
-  const toNum = (v: number | string | null | undefined): number | null => {
-    if (v === null || v === undefined) return null;
-    if (typeof v === "number") return Number.isFinite(v) ? v : null;
-    const n = parseFloat(v);
-    return Number.isFinite(n) ? n : null;
-  };
 
   const mapsHref = useMemo(() => {
     if (!cafe) return "#";
@@ -50,36 +132,37 @@ export default function CafeDetailPage({ params }: Props) {
       setErr(null);
 
       try {
-        // 1) Coba anggap slug valid di backend: /api/cafes/:slug
+        const isNumericId = /^\d+$/.test(slug);
         let c: Cafe | null = null;
-        try {
-          c = (await apiCafeDetail(slug)) as Cafe;
-        } catch {
-          // 2) Fallback: cari lewat list, cocokkan slug/name → dapat id
-          const res = await apiListCafes({ search: slug });
-          const exact =
-            res.data.find((x) => x.slug === slug) ??
-            res.data.find((x) =>
-              x.name?.toLowerCase().includes(slug.toLowerCase())
-            ) ??
+
+        if (isNumericId) {
+          // ✅ slug berupa angka → detail langsung
+          c = (await apiCafeDetail(Number(slug))) as Cafe;
+        } else {
+          // ✅ slug bukan angka → cari dulu dari list
+          const res = await apiListCafes({ search: slug, limit: 50, offset: 0 });
+          const list = res.data ?? [];
+
+          const found =
+            list.find((x) => x.slug === slug) ??
+            list.find((x) => slugify(x.name ?? "") === slug) ??
+            list.find((x) => (x.name ?? "").toLowerCase().includes(slug.toLowerCase())) ??
             null;
-          if (exact) {
-            c = (await apiCafeDetail(exact.id)) as Cafe;
+
+          if (found?.id) {
+            c = (await apiCafeDetail(found.id)) as Cafe;
           }
         }
 
-        if (!c) {
-          throw new Error("Coffeeshop tidak ditemukan.");
-        }
+        if (!c) throw new Error("Coffeeshop tidak ditemukan.");
 
         if (!mounted) return;
         setCafe(c);
 
-        // Ambil menu berdasarkan id (lebih aman)
+        // menu by id
         try {
           const m = await apiCafeMenu(c.id);
-          // API kamu kadang {data: []}, kadang langsung array → normalisasi
-          const items = Array.isArray(m) ? m : (m as { data: MenuItem[] })?.data ?? [];
+          const items = Array.isArray(m) ? m : (m as { data?: MenuItem[] })?.data ?? [];
           if (!mounted) return;
           setMenu(items);
         } catch {
@@ -122,30 +205,32 @@ export default function CafeDetailPage({ params }: Props) {
 
   if (!cafe) return null;
 
-  const cover = cafe.cover_url ?? "/img/placeholder/cafe.jpg";
+  const cover = pickImage(cafe);
 
   return (
     <main className="min-h-screen bg-white text-[#2b210a]">
-      {/* Hero image dengan overlay simpel (clean, tidak mengubah gaya global) */}
+      {/* Hero */}
       <section className="relative h-[320px] md:h-[420px] w-full">
-        <Image
-          src={cover}
-          alt={cafe.name}
-          fill
-          className="object-cover"
-          priority
-        />
+        <Image src={cover} alt={cafe.name} fill className="object-cover" priority />
         <div className="absolute inset-0 bg-black/35" />
+
         <div className="absolute inset-x-0 bottom-0 p-6 md:p-10">
           <div className="max-w-5xl mx-auto">
+            <button
+              onClick={() => router.back()}
+              className="mb-4 inline-flex items-center gap-2 text-xs bg-white/90 text-[#2b210a] rounded-full px-3 py-2 hover:bg-white"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Kembali
+            </button>
+
             <h1 className="text-white text-3xl md:text-5xl font-extrabold drop-shadow">
               {cafe.name}
             </h1>
             {cafe.address && (
-              <p className="mt-2 text-neutral-100 max-w-3xl drop-shadow">
-                {cafe.address}
-              </p>
+              <p className="mt-2 text-neutral-100 max-w-3xl drop-shadow">{cafe.address}</p>
             )}
+
             <div className="mt-4">
               <a
                 href={mapsHref}
@@ -163,36 +248,32 @@ export default function CafeDetailPage({ params }: Props) {
 
       {/* Konten */}
       <section className="max-w-5xl mx-auto px-6 md:px-12 py-10 space-y-10">
-        {/* Deskripsi */}
+        {/* Tentang */}
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <h2 className="text-xl font-bold mb-2">Tentang Coffeeshop</h2>
           <p className="text-sm leading-relaxed text-neutral-700">
             {cafe.description ?? "Belum ada deskripsi."}
           </p>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 text-sm">
-            <InfoItem label="Instagram" value={cafe.instagram ? `@${trimAt(cafe.instagram)}` : "—"} />
+            <InfoItem
+              label="Instagram"
+              value={cafe.instagram ? `@${trimAt(cafe.instagram)}` : "—"}
+            />
             <InfoItem label="Telepon" value={cafe.phone ?? "—"} />
             <InfoItem
               label="Jam Operasional"
-              value={
-                cafe.opening_hours
-                  ? formatOpeningHours(cafe.opening_hours)
-                  : "—"
-              }
+              value={formatOpeningHours((cafe as unknown as { opening_hours?: unknown }).opening_hours)}
             />
           </div>
         </div>
 
         {/* Menu */}
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Menu</h2>
-          </div>
+          <h2 className="text-xl font-bold">Menu</h2>
 
           {menu.length === 0 ? (
-            <p className="text-sm text-neutral-600 mt-4">
-              Belum ada menu yang ditampilkan.
-            </p>
+            <p className="text-sm text-neutral-600 mt-4">Belum ada menu yang ditampilkan.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
               {menu.map((m) => (
@@ -222,20 +303,13 @@ function MenuCard({ item }: { item: MenuItem }) {
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden bg-white hover:shadow-md transition">
       {item.photo_url ? (
-        // NOTE: bisa diganti ke next/image kalau kamu mau optimasi; <img> minim props biar aman
-        <img
-          src={item.photo_url}
-          alt={item.name}
-          className="w-full h-40 object-cover"
-        />
+        <img src={item.photo_url} alt={item.name} className="w-full h-40 object-cover" />
       ) : (
         <div className="w-full h-40 bg-neutral-100" />
       )}
       <div className="p-4">
         <div className="font-semibold">{item.name}</div>
-        {item.category && (
-          <div className="text-xs text-neutral-500 mt-0.5">{item.category}</div>
-        )}
+        {item.category && <div className="text-xs text-neutral-500 mt-0.5">{item.category}</div>}
         {item.description && (
           <p className="text-sm text-neutral-700 mt-2 line-clamp-3">{item.description}</p>
         )}
@@ -245,7 +319,6 @@ function MenuCard({ item }: { item: MenuItem }) {
   );
 }
 
-/* ========== Skeleton ========== */
 function SkeletonPage() {
   return (
     <main className="min-h-screen bg-white text-[#2b210a]">
@@ -275,8 +348,6 @@ function SkeletonPage() {
   );
 }
 
-/* ========== Utils ========== */
-
 function formatIDR(n: number): string {
   try {
     return new Intl.NumberFormat("id-ID", {
@@ -287,23 +358,4 @@ function formatIDR(n: number): string {
   } catch {
     return `Rp ${n || 0}`;
   }
-}
-
-function trimAt(v: string) {
-  // "https://instagram.com/solti" → "solti", "@solti" → "solti"
-  return v.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "");
-}
-
-function formatOpeningHours(oh: Record<string, string>) {
-  // contoh singkat: gabungkan beberapa hari yang diisi
-  const keys = Object.keys(oh);
-  if (keys.length === 0) return "—";
-  // tampilkan maksimal 3 entri agar ringkas
-  const lines = keys.slice(0, 3).map((k) => `${capitalize(k)}: ${oh[k]}`);
-  const more = keys.length > 3 ? `, +${keys.length - 3} hari` : "";
-  return lines.join(", ") + more;
-}
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
