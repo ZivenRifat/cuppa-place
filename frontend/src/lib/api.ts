@@ -39,11 +39,9 @@ function readStringProp(obj: Record<string, unknown>, key: string): string | nul
 function extractToken(resp: unknown): string | null {
   if (!isRecord(resp)) return null;
 
-  // token / access_token di root
   const rootToken = readStringProp(resp, "token") ?? readStringProp(resp, "access_token");
   if (rootToken) return rootToken;
 
-  // token / access_token di resp.data (kalau ada)
   const dataVal = resp["data"];
   if (isRecord(dataVal)) {
     const dataToken =
@@ -58,7 +56,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOpts = RequestInit & {
   timeoutMs?: number;
-  auth?: boolean; // default true, set false untuk endpoint public
+  auth?: boolean; // default true
 };
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
@@ -79,14 +77,12 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     ...(opts.headers as Record<string, string>),
   };
 
-  // AUTO AUTH HEADER (Bearer)
   const useAuth = opts.auth !== false;
   if (useAuth) {
     const token = getAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // JSON content-type (JANGAN set untuk FormData)
   if (opts.body && !(opts.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -101,7 +97,6 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     if (timeout) clearTimeout(timeout);
   });
 
-  // 401 handling
   if (res.status === 401) {
     setAuthToken(null);
     throw new Error("Unauthorized");
@@ -139,7 +134,6 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   return (await res.text()) as unknown as T;
 }
 
-/** Multipart helper */
 async function requestMultipart<T>(
   path: string,
   form: FormData,
@@ -230,25 +224,32 @@ export async function apiVerifyOtp(payload: {
 
 // =================== MITRA ===================
 
-// Optional: tipe response register mitra (biar ga pakai any)
 export type RegisterMitraResp = AuthResp & {
-  cafe?: { id?: number; name?: string; logo_url?: string | null; cover_url?: string | null };
+  cafe?: {
+    id?: number;
+    name?: string;
+    logo_url?: string | null;
+    cover_url?: string | null;
+    galleries?: { id: number; image_url: string | null }[];
+  };
 };
 
-// ✅ Register Mitra via FormData (sekali jalan bisa upload logo/cover)
 export async function apiRegisterMitra(payload: {
   name: string;
   email: string;
   password: string;
   phone?: string;
+
   cafe_name: string;
   address?: string;
   lat?: number;
   lng?: number;
   instagram?: string;
   opening_hours?: unknown;
+
   logo?: File | null;
   cover?: File | null;
+  gallery?: File[]; // ✅ NEW
 }) {
   const fd = new FormData();
   fd.append("name", payload.name);
@@ -268,6 +269,12 @@ export async function apiRegisterMitra(payload: {
 
   if (payload.logo) fd.append("logo", payload.logo);
   if (payload.cover) fd.append("cover", payload.cover);
+
+  // ✅ append multiple gallery files
+  const galleryFiles = payload.gallery ?? [];
+  for (const f of galleryFiles) {
+    if (f instanceof File) fd.append("gallery", f);
+  }
 
   const resp = await request<RegisterMitraResp>(`/api/mitra/register`, {
     method: "POST",
@@ -385,9 +392,7 @@ export async function apiUploadCafeMedia(
   const fd = new FormData();
   if (payload.logo) fd.append("logo", payload.logo);
   if (payload.cover) fd.append("cover", payload.cover);
-
   if (!payload.logo && !payload.cover) return null;
-
   return requestMultipart(`/api/cafes/${cafeId}/media`, fd, { auth: true });
 }
 

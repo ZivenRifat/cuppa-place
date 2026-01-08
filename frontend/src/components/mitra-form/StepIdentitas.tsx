@@ -1,4 +1,4 @@
-// src/components/mitra-form/StepIdentitas.tsx
+// frontend/src/components/mitra-form/StepIdentitas.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -19,10 +19,13 @@ type MitraFormValue = {
   lng?: number;
   instagram?: string;
 
-  logoFile?: File | null;
-  galleryFiles?: File[];
-  logoPreviewUrl?: string | null;
-  galleryPreviewUrls?: string[];
+  logoFile: File | null;
+  coverFile: File | null;
+  galleryFiles: File[];
+
+  logoPreviewUrl: string | null;
+  coverPreviewUrl: string | null;
+  galleryPreviewUrls: string[];
 };
 
 export default function StepIdentitas({
@@ -52,7 +55,8 @@ export default function StepIdentitas({
     (k: keyof MitraFormValue) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const v = e.target.value;
-      onChange({ [k]: v } as Partial<MitraFormValue>);
+      // lat/lng input masuk string; kita convert di parent (page) biar simple
+      onChange({ [k]: v } as unknown as Partial<MitraFormValue>);
     };
 
   const passwordStrength = useMemo(() => {
@@ -66,7 +70,8 @@ export default function StepIdentitas({
     return Math.min(s, 4);
   }, [value.password]);
 
-  const strengthLabel = ["Sangat lemah", "Lemah", "Cukup", "Baik", "Kuat"][passwordStrength] ?? "—";
+  const strengthLabel =
+    ["Sangat lemah", "Lemah", "Cukup", "Baik", "Kuat"][passwordStrength] ?? "—";
 
   const onPickLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -85,10 +90,30 @@ export default function StepIdentitas({
     onChange({ logoFile: null, logoPreviewUrl: null });
   };
 
+  const onPickCover = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      notify?.("File cover harus gambar.", "error");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    revokeUrls.current.push(url);
+    onChange({ coverFile: file, coverPreviewUrl: url });
+  };
+
+  const removeCover = () => {
+    if (value.coverPreviewUrl) URL.revokeObjectURL(value.coverPreviewUrl);
+    onChange({ coverFile: null, coverPreviewUrl: null });
+  };
+
   const onPickGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+    const files = Array.from(e.target.files ?? []).filter((f) =>
+      f.type.startsWith("image/")
+    );
     if (!files.length) return;
-    const current = value.galleryFiles?.length ?? 0;
+
+    const current = value.galleryFiles.length;
     const left = Math.max(0, 8 - current);
     const take = files.slice(0, left);
 
@@ -98,17 +123,16 @@ export default function StepIdentitas({
       return u;
     });
 
-    const mergedFiles = [...(value.galleryFiles ?? []), ...take];
-    const mergedUrls = [...(value.galleryPreviewUrls ?? []), ...urls];
+    const mergedFiles = [...value.galleryFiles, ...take];
+    const mergedUrls = [...value.galleryPreviewUrls, ...urls];
     onChange({ galleryFiles: mergedFiles, galleryPreviewUrls: mergedUrls });
-    if (files.length > left) {
-      notify?.("Maksimal 8 foto suasana.", "info");
-    }
+
+    if (files.length > left) notify?.("Maksimal 8 foto suasana.", "info");
   };
 
   const removeGalleryAt = (idx: number) => {
-    const files = [...(value.galleryFiles ?? [])];
-    const urls = [...(value.galleryPreviewUrls ?? [])];
+    const files = [...value.galleryFiles];
+    const urls = [...value.galleryPreviewUrls];
     if (urls[idx]) URL.revokeObjectURL(urls[idx]);
     files.splice(idx, 1);
     urls.splice(idx, 1);
@@ -117,11 +141,15 @@ export default function StepIdentitas({
 
   const tryNext = () => {
     if (!value.cafe_name?.trim()) return notify?.("Nama Coffeeshop harus diisi.", "error");
-    if (!value.email?.trim() || !/^\S+@\S+\.\S+$/.test(value.email)) return notify?.("Email tidak valid.", "error");
-    if (!value.phone?.trim() || value.phone.replace(/\D/g, "").length < 8) return notify?.("Nomor HP tidak valid.", "error");
+    if (!value.email?.trim() || !/^\S+@\S+\.\S+$/.test(value.email))
+      return notify?.("Email tidak valid.", "error");
+    if (!value.phone?.trim() || value.phone.replace(/\D/g, "").length < 8)
+      return notify?.("Nomor HP tidak valid.", "error");
     if (!value.address?.trim()) return notify?.("Alamat harus diisi.", "error");
-    if (!value.password || value.password.length < 8) return notify?.("Password minimal 8 karakter.", "error");
-    if (value.password !== value.password2) return notify?.("Konfirmasi password tidak sama.", "error");
+    if (!value.password || value.password.length < 8)
+      return notify?.("Password minimal 8 karakter.", "error");
+    if (value.password !== value.password2)
+      return notify?.("Konfirmasi password tidak sama.", "error");
     onNext();
   };
 
@@ -193,6 +221,7 @@ export default function StepIdentitas({
                 {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+
             <div className="mt-1 h-1.5 bg-gray-200 rounded">
               <div
                 className={`h-1.5 rounded ${
@@ -250,6 +279,7 @@ export default function StepIdentitas({
               placeholder="contoh: Sen–Min 08:00–22:00"
             />
           </div>
+
           <div>
             <label className="font-semibold text-sm">Instagram (opsional)</label>
             <input
@@ -259,6 +289,7 @@ export default function StepIdentitas({
               placeholder="@yourcafe"
             />
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="font-semibold text-sm">Lat (opsional)</label>
@@ -282,14 +313,20 @@ export default function StepIdentitas({
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
+
+        {/* UPLOADS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* LOGO */}
           <div>
             <label className="font-semibold text-sm mb-2 block">Logo Coffeeshop (opsional)</label>
             {value.logoPreviewUrl ? (
               <div className="relative w-40 h-40 rounded-lg overflow-hidden border">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={value.logoPreviewUrl} alt="Logo preview" className="w-full h-full object-cover" />
+                <img
+                  src={value.logoPreviewUrl}
+                  alt="Logo preview"
+                  className="w-full h-full object-cover"
+                />
                 <button
                   type="button"
                   onClick={removeLogo}
@@ -307,15 +344,52 @@ export default function StepIdentitas({
               </label>
             )}
           </div>
+
+          {/* COVER */}
+          <div>
+            <label className="font-semibold text-sm mb-2 block">Cover Coffeeshop (opsional)</label>
+            {value.coverPreviewUrl ? (
+              <div className="relative w-40 h-40 rounded-lg overflow-hidden border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={value.coverPreviewUrl}
+                  alt="Cover preview"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={removeCover}
+                  className="absolute -top-2 -right-2 bg-white rounded-full shadow p-1.5 text-red-600 hover:bg-red-50"
+                  aria-label="Hapus cover"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ) : (
+              <label className="w-40 h-40 border rounded-lg flex flex-col items-center justify-center text-sm text-gray-600 cursor-pointer hover:bg-gray-50">
+                <ImagePlus size={22} className="mb-1" />
+                Unggah Cover
+                <input type="file" accept="image/*" className="hidden" onChange={onPickCover} />
+              </label>
+            )}
+          </div>
+
+          {/* GALLERY */}
           <div>
             <label className="font-semibold text-sm mb-2 block">Foto Suasana (opsional)</label>
             <label className="inline-flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
               <ImagePlus size={18} />
               Tambah Foto
-              <input type="file" accept="image/*" multiple className="hidden" onChange={onPickGallery} />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={onPickGallery}
+              />
             </label>
 
-            {value.galleryPreviewUrls && value.galleryPreviewUrls.length > 0 && (
+            {value.galleryPreviewUrls.length > 0 && (
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {value.galleryPreviewUrls.map((u, i) => (
                   <div key={i} className="relative rounded-md overflow-hidden border">
@@ -336,6 +410,7 @@ export default function StepIdentitas({
           </div>
         </div>
       </div>
+
       <div className="flex justify-end pt-6">
         <button
           type="button"

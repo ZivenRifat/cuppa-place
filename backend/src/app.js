@@ -15,6 +15,7 @@ const favoriteRoutes = require("./routes/favorites.routes");
 const reviewRoutes = require("./routes/reviews.routes");
 const uploadRoutes = require("./routes/uploads.routes");
 
+
 const app = express();
 
 /** ========= CORS =========

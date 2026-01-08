@@ -1,5 +1,6 @@
 // backend/src/middlewares/uploadCafeMedia.js
 const path = require("path");
+const fs = require("fs");
 const multer = require("multer");
 const crypto = require("crypto");
 
@@ -16,12 +17,23 @@ function filename(req, file, cb) {
   cb(null, `${name}${ext}`);
 }
 
+// folder root uploads (di project root)
 const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+
+// pastikan folder ada
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = file.fieldname === "cover" ? "covers" : "logos";
-    cb(null, path.join(UPLOAD_ROOT, dir));
+    let dirName = "logos";
+    if (file.fieldname === "cover") dirName = "covers";
+    if (file.fieldname === "gallery") dirName = "galleries";
+
+    const dir = path.join(UPLOAD_ROOT, dirName);
+    ensureDir(dir);
+    cb(null, dir);
   },
   filename,
 });

@@ -1,3 +1,4 @@
+// backend/src/models/cafe.js
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {

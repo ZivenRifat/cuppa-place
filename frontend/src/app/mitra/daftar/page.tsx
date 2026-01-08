@@ -1,4 +1,4 @@
-// src/app/mitra/daftar/page.tsx
+// frontend/src/app/mitra/daftar/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
@@ -8,7 +8,7 @@ import StepIndicator from "@/components/mitra-form/StepIndicator";
 import StepIdentitas from "@/components/mitra-form/StepIdentitas";
 import StepFasilitas from "@/components/mitra-form/StepFasilitas";
 import StepVerifikasi from "@/components/mitra-form/StepVerifikasi";
-import { apiRegisterMitra, apiUploadCafeMedia } from "@/lib/api";
+import { apiRegisterMitra } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { routeForRole } from "@/lib/roles";
 import { AnimatePresence, motion } from "framer-motion";
@@ -17,12 +17,12 @@ import { CheckCircle, XCircle, Info } from "lucide-react";
 import type { OpeningHours, MitraFormData } from "@/types/mitra";
 import { DEFAULT_OPENING_HOURS } from "@/types/mitra";
 
-
 function toMin(hhmm: string): number {
   const [h, m] = hhmm.split(":").map((x) => parseInt(x, 10));
   if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
   return h * 60 + m;
 }
+
 function validateOpeningHours(oh: OpeningHours | undefined): string[] {
   if (!oh) return ["Jam operasional belum diisi"];
   const days = Object.entries(oh) as [
@@ -63,15 +63,9 @@ function validateOpeningHours(oh: OpeningHours | undefined): string[] {
       const s = toMin(r.start);
       const e = toMin(r.end);
       if (Number.isNaN(s) || Number.isNaN(e))
-        return {
-          ok: false,
-          msg: `${label}: format jam tidak valid (range #${i + 1})`,
-        };
+        return { ok: false, msg: `${label}: format jam tidak valid (range #${i + 1})` };
       if (s >= e)
-        return {
-          ok: false,
-          msg: `${label}: jam mulai harus < jam selesai (range #${i + 1})`,
-        };
+        return { ok: false, msg: `${label}: jam mulai harus < jam selesai (range #${i + 1})` };
       return { ok: true, s, e };
     }) as ParsedRange[];
 
@@ -154,44 +148,10 @@ function ConfirmLeaveModal({
   );
 }
 
-/**
- * Upload logo/cover ke backend via:
- * POST /api/cafes/:id/media
- * field: logo / cover
- */
-async function uploadCafeMedia(args: {
-  token: string;
-  cafeId: number;
-  logoFile?: File | null;
-  coverFile?: File | null;
-}): Promise<void> {
-  const { token, cafeId, logoFile, coverFile } = args;
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
-  if (!API_BASE) {
-    throw new Error("API_BASE kosong. Cek env NEXT_PUBLIC_API_BASE / konfigurasi API_BASE.");
-  }
-
-  const fd = new FormData();
-  if (logoFile) fd.append("logo", logoFile);
-  if (coverFile) fd.append("cover", coverFile);
-
-  // kalau tidak ada file, jangan request
-  if (![logoFile, coverFile].some(Boolean)) return;
-
-  const res = await fetch(`${API_BASE.replace(/\/+$/, "")}/api/cafes/${cafeId}/media`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      // jangan set Content-Type manual untuk FormData
-    },
-    body: fd,
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(txt || "Upload media cafe gagal");
-  }
+function parseOptionalNumber(v: unknown): number | undefined {
+  if (v == null) return undefined;
+  const n = typeof v === "number" ? v : Number(String(v));
+  return Number.isFinite(n) ? n : undefined;
 }
 
 export default function GabungMitraPage() {
@@ -207,16 +167,18 @@ export default function GabungMitraPage() {
     hours: "",
     fasilitas: [],
     opening_hours: DEFAULT_OPENING_HOURS,
+
     logoFile: null,
+    coverFile: null,
     galleryFiles: [],
+
     logoPreviewUrl: null,
+    coverPreviewUrl: null,
     galleryPreviewUrls: [],
   });
 
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(
-    null
-  );
+  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const pendingHrefRef = useRef<string | null>(null);
@@ -234,7 +196,13 @@ export default function GabungMitraPage() {
   }, []);
 
   const setIdentitas = useCallback((patch: Partial<MitraFormData>) => {
-    setForm((f) => ({ ...f, ...patch }));
+    // kalau lat/lng masuk string dari StepIdentitas, kita convert di sini
+    const next: Partial<MitraFormData> = { ...patch };
+
+    if ("lat" in patch) next.lat = parseOptionalNumber(patch.lat);
+    if ("lng" in patch) next.lng = parseOptionalNumber(patch.lng);
+
+    setForm((f) => ({ ...f, ...next }));
   }, []);
 
   const setFasilitas = useCallback((list: string[]) => {
@@ -274,43 +242,28 @@ export default function GabungMitraPage() {
       form.hours ||
       (form.fasilitas && form.fasilitas.length > 0) ||
       form.logoFile != null ||
+      form.coverFile != null ||
       (form.galleryFiles && form.galleryFiles.length > 0);
+
     return !!basic || step > 1;
   }, [form, step]);
 
   const canGoStep2 = useCallback(() => {
-    if (!form.cafe_name.trim()) {
-      notify("Nama Coffeeshop harus diisi.", "error");
-      return false;
-    }
-    if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) {
-      notify("Email tidak valid.", "error");
-      return false;
-    }
-    if (!form.phone.trim() || form.phone.replace(/\D/g, "").length < 8) {
-      notify("Nomor HP tidak valid.", "error");
-      return false;
-    }
-    if (!form.address.trim()) {
-      notify("Alamat harus diisi.", "error");
-      return false;
-    }
-    if (!form.password || form.password.length < 8) {
-      notify("Password minimal 8 karakter.", "error");
-      return false;
-    }
-    if (form.password !== form.password2) {
-      notify("Konfirmasi password tidak sama.", "error");
-      return false;
-    }
+    if (!form.cafe_name.trim()) return notify("Nama Coffeeshop harus diisi.", "error"), false;
+    if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email))
+      return notify("Email tidak valid.", "error"), false;
+    if (!form.phone.trim() || form.phone.replace(/\D/g, "").length < 8)
+      return notify("Nomor HP tidak valid.", "error"), false;
+    if (!form.address.trim()) return notify("Alamat harus diisi.", "error"), false;
+    if (!form.password || form.password.length < 8)
+      return notify("Password minimal 8 karakter.", "error"), false;
+    if (form.password !== form.password2)
+      return notify("Konfirmasi password tidak sama.", "error"), false;
     return true;
   }, [form, notify]);
 
   const canGoStep3 = useCallback(() => {
-    if (form.fasilitas.length === 0) {
-      notify("Pilih setidaknya 1 fasilitas di Step 2.", "error");
-      return false;
-    }
+    if (form.fasilitas.length === 0) return notify("Pilih setidaknya 1 fasilitas di Step 2.", "error"), false;
     const errs = validateOpeningHours(form.opening_hours);
     if (errs.length) {
       notify(`Periksa jam operasional:\n- ${errs.join("\n- ")}`, "error");
@@ -320,52 +273,33 @@ export default function GabungMitraPage() {
   }, [form.fasilitas, form.opening_hours, notify]);
 
   const handleVerifyAndRegister = useCallback(
-    /* eslint-disable  @typescript-eslint/no-explicit-any */
     async (_otp?: string) => {
       setSubmitting(true);
       try {
-        // 1) register (backend return { token, user, cafe:{id,...} })
+        // ✅ register SEKALI JALAN: data + logo + cover + gallery
         const res = await apiRegisterMitra({
           name: form.cafe_name,
           email: form.email,
           password: form.password,
           phone: form.phone,
+
           cafe_name: form.cafe_name,
           address: form.address,
           lat: form.lat,
           lng: form.lng,
           instagram: form.instagram,
-          // kalau kamu mau kirim opening_hours juga bisa tambahin di backend update
-          // opening_hours: form.opening_hours,
+          opening_hours: form.opening_hours,
+
+          logo: form.logoFile,
+          cover: form.coverFile,
+          gallery: form.galleryFiles,
         });
 
-        const cafeId = (res as { cafe?: { id?: number } })?.cafe?.id; // kalau types kamu belum lengkap
-        if (!cafeId) {
-          notify("Daftar berhasil, tapi cafe id tidak ditemukan dari response register.", "info");
-        } else {
-          // 2) upload logo/cover setelah register (pakai cafeId dari response!)
-          if (form.logoFile || (form as any).coverFile) {
-            try {
-              await apiUploadCafeMedia(cafeId, {
-                logo: form.logoFile ?? null,
-                cover: (form as any).coverFile ?? null, // kalau belum ada di form, ini aman
-              });
-            } catch (e) {
-              const msg =
-                e instanceof Error
-                  ? `Daftar berhasil, tapi upload media gagal: ${e.message}`
-                  : "Daftar berhasil, tapi upload media gagal.";
-              notify(msg, "info");
-            }
-          }
-        }
-
-        // 3) refresh & redirect
         await refreshMe();
         setToast({ msg: "Pendaftaran mitra berhasil 🎉", kind: "success" });
 
         setTimeout(() => {
-          router.replace(routeForRole((res as any).user.role));
+          router.replace(routeForRole(res.user.role));
         }, 300);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Registrasi mitra gagal";
@@ -376,8 +310,6 @@ export default function GabungMitraPage() {
     },
     [form, refreshMe, router, notify]
   );
-
-
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -446,22 +378,15 @@ export default function GabungMitraPage() {
     pendingHrefRef.current = null;
     pendingBackRef.current = false;
 
-    if (back) {
-      history.back();
-      return;
-    }
+    if (back) return history.back();
 
     if (href) {
       try {
         const u = new URL(href);
         const sameOrigin = u.origin === window.location.origin;
         const specialScheme = /^(tel:|mailto:|sms:|whatsapp:)/i.test(href);
-        if (!sameOrigin || specialScheme) {
-          window.location.assign(href);
-        } else {
-          const next = `${u.pathname}${u.search}${u.hash}`;
-          router.push(next);
-        }
+        if (!sameOrigin || specialScheme) window.location.assign(href);
+        else router.push(`${u.pathname}${u.search}${u.hash}`);
       } catch {
         window.location.assign(href);
       }
@@ -504,6 +429,7 @@ export default function GabungMitraPage() {
                 notify={notify}
               />
             )}
+
             {step === 2 && (
               <StepFasilitas
                 selected={form.fasilitas}
@@ -517,22 +443,15 @@ export default function GabungMitraPage() {
                 notify={notify}
               />
             )}
+
             {step === 3 && (
               <StepVerifikasi
                 emailDefault={form.email}
                 onBack={() => setStep(2)}
                 onVerify={(otp) => {
                   if (submitting) return;
-                  if (!isStep1Valid) {
-                    notify("Lengkapi data Step 1 dulu.", "error");
-                    setStep(1);
-                    return;
-                  }
-                  if (!isStep2Valid) {
-                    notify("Lengkapi data Step 2 dulu.", "error");
-                    setStep(2);
-                    return;
-                  }
+                  if (!isStep1Valid) return notify("Lengkapi data Step 1 dulu.", "error"), setStep(1);
+                  if (!isStep2Valid) return notify("Lengkapi data Step 2 dulu.", "error"), setStep(2);
                   handleVerifyAndRegister(otp);
                 }}
                 submitting={submitting}
@@ -568,7 +487,7 @@ export default function GabungMitraPage() {
               ) : (
                 <Info className="w-5 h-5" />
               )}
-              <span className="text-sm font-medium">{toast.msg}</span>
+              <span className="text-sm font-medium whitespace-pre-line">{toast.msg}</span>
             </div>
           </motion.div>
         )}

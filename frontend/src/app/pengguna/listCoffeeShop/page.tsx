@@ -20,9 +20,23 @@ type UiCafeCard = {
 };
 
 function pickImage(cafe: Cafe): string {
-  const cover = (cafe as unknown as { cover_url?: string | null }).cover_url ?? null;
-  const logo = (cafe as unknown as { logo_url?: string | null }).logo_url ?? null;
-  return cover || logo || "/img/home/bg-section.jpg";
+  // prioritas cover -> gallery[0] -> logo -> fallback
+  const cover = cafe.cover_url ?? null;
+  const g0 = cafe.galleries?.[0]?.image_url ?? null;
+  const logo = cafe.logo_url ?? null;
+  return cover || g0 || logo || "/img/home/bg-section.jpg";
+}
+
+// debounce helper (tanpa library)
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+
+  return debounced;
 }
 
 export default function CoffeeShopPage() {
@@ -31,6 +45,7 @@ export default function CoffeeShopPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +56,7 @@ export default function CoffeeShopPage() {
         setError(null);
 
         const res = await apiListCafes({
-          search: search.trim() ? search.trim() : undefined,
+          search: debouncedSearch.trim() ? debouncedSearch.trim() : undefined,
           limit: 50,
           offset: 0,
         });
@@ -63,21 +78,23 @@ export default function CoffeeShopPage() {
     return () => {
       active = false;
     };
-  }, [search]);
+  }, [debouncedSearch]);
 
   const cards: UiCafeCard[] = useMemo(() => {
-    return (items ?? []).map((c) => {
-      return {
-        id: Number(c.id),
-        name: c.name ?? "Coffeeshop",
-        location: (c.address ?? "Alamat belum diisi").toString(),
-        // sementara backend belum punya rating+count, aman 0
-        rating: Number((c as unknown as { avg_rating?: number }).avg_rating ?? 0),
-        reviews: Number((c as unknown as { review_count?: number }).review_count ?? 0),
-        category: "Coffee Shop",
-        img: pickImage(c),
-      };
-    });
+    return (items ?? []).map((c) => ({
+      id: Number(c.id),
+      name: c.name || "Coffeeshop",
+      location: (c.address ?? "Alamat belum diisi").toString(),
+
+      // NOTE:
+      // Backend /api/cafes kamu belum kirim avg_rating & review_count,
+      // jadi default 0 (tetap aman).
+      rating: 0,
+      reviews: 0,
+
+      category: "Coffee Shop",
+      img: pickImage(c),
+    }));
   }, [items]);
 
   return (
@@ -101,7 +118,9 @@ export default function CoffeeShopPage() {
 
           {/* SEARCH */}
           <div className="w-full md:w-[360px]">
-            <label className="text-xs text-gray-600 mb-1 block">Cari coffeeshop</label>
+            <label className="text-xs text-gray-600 mb-1 block">
+              Cari coffeeshop
+            </label>
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
               <Search className="w-4 h-4 text-gray-500" />
               <input
@@ -111,13 +130,20 @@ export default function CoffeeShopPage() {
                 className="w-full text-sm outline-none bg-transparent"
               />
             </div>
+            {search !== debouncedSearch ? (
+              <p className="text-[11px] text-gray-400 mt-1">
+                Mencari...
+              </p>
+            ) : null}
           </div>
         </div>
 
         {/* STATES */}
         {loading ? (
           <div className="py-10">
-            <p className="text-center text-sm text-gray-500">Memuat daftar coffeeshop...</p>
+            <p className="text-center text-sm text-gray-500">
+              Memuat daftar coffeeshop...
+            </p>
           </div>
         ) : error ? (
           <div className="py-10">
@@ -149,7 +175,7 @@ export default function CoffeeShopPage() {
         )}
       </main>
 
-      {/* SLIDESHOW FULL WIDTH DI PALING BAWAH */}
+      {/* SLIDESHOW */}
       <div>
         <SlideShow />
       </div>

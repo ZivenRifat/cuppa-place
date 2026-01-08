@@ -16,6 +16,7 @@ router.post("/:id/reviews", authRequired, reviewCtrl.create);
 router.get("/:id/reports", authRequired, ctrl.reports);
 router.put("/:id", authRequired, ctrl.update);
 
+// update logo/cover (after register)
 router.post(
   "/:id/media",
   authRequired,
@@ -25,6 +26,23 @@ router.post(
     { name: "logo", maxCount: 1 },
   ]),
   ctrl.updateMedia
+);
+
+// upload gallery (after register) - multiple files
+router.post(
+  "/:id/galleries",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  uploadCafeMedia.array("gallery", 8),
+  ctrl.addGallery
+);
+
+// delete one gallery image
+router.delete(
+  "/:id/galleries/:galleryId",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  ctrl.deleteGallery
 );
 
 module.exports = router;
