@@ -53,8 +53,7 @@ async function registerMitra(req, res) {
       lng,
       instagram,
       opening_hours,
-      fasilitas,
-      gallery
+      fasilitas, // boleh ada walau belum dipakai
     } = req.body || {};
 
     if (!name || !email || !password || !cafe_name) {
@@ -72,40 +71,21 @@ async function registerMitra(req, res) {
     const files = req.files || {};
     const logoFile = files.logo?.[0] || null;
     const coverFile = files.cover?.[0] || null;
-    const galleryFiles = files.gallery ?? [];
 
-  if (galleryFiles.length && CafeGallery) {
-    const rows = galleryFiles
-      .filter((f) => f?.filename)
-      .map((f) => ({
-        cafe_id: cafe.id,
-        image_url: `/uploads/galleries/${f.filename}`,
-      }));
-
-    if (rows.length) {
-      await CafeGallery.bulkCreate(rows, { transaction: t });
-    }
-  }
-
+    // ✅ pastikan gallery array
+    const galleryFiles = Array.isArray(files.gallery) ? files.gallery : [];
 
     // SIMPAN RELATIVE PATH
-    const logoRel = logoFile?.filename
-      ? `/uploads/logos/${logoFile.filename}`
-      : null;
-    const coverRel = coverFile?.filename
-      ? `/uploads/covers/${coverFile.filename}`
-      : null;
+    const logoRel = logoFile?.filename ? `/uploads/logos/${logoFile.filename}` : null;
+    const coverRel = coverFile?.filename ? `/uploads/covers/${coverFile.filename}` : null;
 
     // opening_hours bisa dikirim sebagai string JSON dari FormData
     let openingHoursJson = null;
     if (opening_hours) {
       try {
         openingHoursJson =
-          typeof opening_hours === "string"
-            ? JSON.parse(opening_hours)
-            : opening_hours;
+          typeof opening_hours === "string" ? JSON.parse(opening_hours) : opening_hours;
       } catch {
-        // kalau parsing gagal, biarkan null (jangan bikin register gagal)
         openingHoursJson = null;
       }
     }
@@ -138,12 +118,14 @@ async function registerMitra(req, res) {
       { transaction: t }
     );
 
-    // simpan gallery kalau ada (optional)
+    // ✅ simpan gallery setelah cafe dibuat
     if (CafeGallery && galleryFiles.length > 0) {
+      const cafeId = cafe.id;
+
       const rows = galleryFiles
         .filter((f) => f && f.filename)
         .map((f) => ({
-          cafe_id: cafe.id,
+          cafe_id: cafeId,
           image_url: `/uploads/galleries/${f.filename}`,
         }));
 
@@ -167,7 +149,7 @@ async function registerMitra(req, res) {
             {
               model: CafeGallery,
               as: "galleries",
-              attributes: ["id", "image_url", "createdAt", "updatedAt"],
+              attributes: ["id", "image_url"], // ✅ jangan minta createdAt dulu
               required: false,
             },
           ]
@@ -191,6 +173,7 @@ async function registerMitra(req, res) {
     return res.status(500).json({ message: "Gagal mendaftarkan mitra." });
   }
 }
+
 
 async function getMitraDashboard(req, res) {
   try {

@@ -10,8 +10,8 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "cafe_galleries",
-      timestamps: true,     // pakai createdAt/updatedAt
-      underscored: false,   // ✅ penting! karena kolom kamu camelCase
+      timestamps: true,
+      underscored: true,
     }
   );
 
