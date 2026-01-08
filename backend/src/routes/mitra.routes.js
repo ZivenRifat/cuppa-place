@@ -13,6 +13,7 @@ router.post(
   uploadCafeMedia.fields([
     { name: "logo", maxCount: 1 },
     { name: "cover", maxCount: 1 },
+    { name: "gallery", maxCount: 8 },
   ]),
   registerMitra
 );

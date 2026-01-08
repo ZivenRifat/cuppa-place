@@ -24,6 +24,7 @@ router.post(
   uploadCafeMedia.fields([
     { name: "cover", maxCount: 1 },
     { name: "logo", maxCount: 1 },
+    { name: "gallery", maxCount: 8 },
   ]),
   ctrl.updateMedia
 );

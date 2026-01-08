@@ -1,10 +1,8 @@
-// backend/src/middlewares/uploadCafeMedia.js
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const crypto = require("crypto");
 
-// ---------- multer khusus media cafe ----------
 function fileFilter(req, file, cb) {
   const ok = /^image\/(png|jpe?g|webp|gif|svg\+xml)$/i.test(file.mimetype);
   if (!ok) return cb(new Error("Only image files allowed"));
@@ -17,22 +15,24 @@ function filename(req, file, cb) {
   cb(null, `${name}${ext}`);
 }
 
-// folder root uploads (di project root)
 const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+const DIR_LOGOS = path.join(UPLOAD_ROOT, "logos");
+const DIR_COVERS = path.join(UPLOAD_ROOT, "covers");
+const DIR_GALLERIES = path.join(UPLOAD_ROOT, "galleries");
 
 // pastikan folder ada
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+for (const d of [UPLOAD_ROOT, DIR_LOGOS, DIR_COVERS, DIR_GALLERIES]) {
+  if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    let dirName = "logos";
-    if (file.fieldname === "cover") dirName = "covers";
-    if (file.fieldname === "gallery") dirName = "galleries";
-
-    const dir = path.join(UPLOAD_ROOT, dirName);
-    ensureDir(dir);
+    const dir =
+      file.fieldname === "cover"
+        ? DIR_COVERS
+        : file.fieldname === "gallery"
+        ? DIR_GALLERIES
+        : DIR_LOGOS; // default logo
     cb(null, dir);
   },
   filename,

@@ -53,6 +53,8 @@ async function registerMitra(req, res) {
       lng,
       instagram,
       opening_hours,
+      fasilitas,
+      gallery
     } = req.body || {};
 
     if (!name || !email || !password || !cafe_name) {
@@ -70,7 +72,21 @@ async function registerMitra(req, res) {
     const files = req.files || {};
     const logoFile = files.logo?.[0] || null;
     const coverFile = files.cover?.[0] || null;
-    const galleryFiles = Array.isArray(files.gallery) ? files.gallery : [];
+    const galleryFiles = files.gallery ?? [];
+
+  if (galleryFiles.length && CafeGallery) {
+    const rows = galleryFiles
+      .filter((f) => f?.filename)
+      .map((f) => ({
+        cafe_id: cafe.id,
+        image_url: `/uploads/galleries/${f.filename}`,
+      }));
+
+    if (rows.length) {
+      await CafeGallery.bulkCreate(rows, { transaction: t });
+    }
+  }
+
 
     // SIMPAN RELATIVE PATH
     const logoRel = logoFile?.filename

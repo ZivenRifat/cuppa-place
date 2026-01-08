@@ -1,5 +1,6 @@
-// backend/src/models/cafe_gallery.js
-module.exports = (sequelize, DataTypes) => {
+const { DataTypes } = require("sequelize");
+
+module.exports = (sequelize) => {
   const CafeGallery = sequelize.define(
     "CafeGallery",
     {
@@ -9,8 +10,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       tableName: "cafe_galleries",
-      timestamps: true,
-      underscored: true,
+      timestamps: true,     // pakai createdAt/updatedAt
+      underscored: false,   // ✅ penting! karena kolom kamu camelCase
     }
   );
 
