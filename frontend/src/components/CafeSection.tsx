@@ -210,7 +210,7 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
           className="group/location relative flex items-center justify-center w-full transition-all duration-500"
         >
           {/* Hover Background */}
-          <div className="w-80 h-10 absolute inset-0 rounded-xl bg-transparent group-hover/location:bg-[#271F01] transition-all duration-500"></div>
+          <div className="w-80 h-17 absolute inset-0 rounded-xl bg-transparent group-hover/location:bg-[#271F01] transition-all duration-500"></div>
 
           {/* Wrapper konten */}
           <div className="flex items-center justify-center gap-2 z-10 py-1">
