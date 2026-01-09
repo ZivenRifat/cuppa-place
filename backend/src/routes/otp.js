@@ -7,7 +7,7 @@ function genCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-router.post(['/auth/send-otp','/otp/send'], async (req, res, next) => {
+router.post(['/auth/send-otp', '/otp/send'], async (req, res, next) => {
   try {
     const { email, reason } = req.body || {};
     if (!email) return res.status(400).json({ message: 'Email required' });
@@ -22,7 +22,7 @@ router.post(['/auth/send-otp','/otp/send'], async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post(['/auth/verify-otp','/otp/verify'], async (req, res, next) => {
+router.post(['/auth/verify-otp', '/otp/verify'], async (req, res, next) => {
   try {
     const { email, otp } = req.body || {};
     if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });

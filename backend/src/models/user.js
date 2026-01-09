@@ -7,6 +7,7 @@ module.exports = (sequelize) => {
     email: { type: DataTypes.STRING(160), allowNull: false, unique: true },
     password_hash: { type: DataTypes.STRING(255), allowNull: false },
     phone: { type: DataTypes.STRING(30) },
+    avatar_url: { type: DataTypes.STRING(500), allowNull: true },
     role: {
       type: DataTypes.ENUM('user', 'mitra', 'admin'),
       allowNull: false,

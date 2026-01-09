@@ -25,7 +25,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-coffee-dark">{review.author}</h4>
             <span className="text-xs text-muted-foreground">
-              {format(new Date(review.date), "MMM dd, yyyy")}
+              {format(new Date(review.created_at || review.date), "MMM dd, yyyy")}
             </span>
           </div>
           <StarRating rating={review.rating} />

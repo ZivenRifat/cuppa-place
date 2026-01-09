@@ -2,6 +2,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiGetMyCafe, apiUpdateCafe } from "@/lib/api";
+import type { Cafe } from "@/types/domain";
 
 type TimeRange = { start: string; end: string }; // "HH:MM"
 type DayHours = { open: boolean; allDay?: boolean; ranges: TimeRange[] };
@@ -31,7 +33,6 @@ const DEFAULT_HOURS: OpeningHours = {
   sun: { open: true, allDay: false, ranges: [{ start: "08:00", end: "23:00" }] },
 };
 
-const LS_KEY = "mitra_opening_hours";
 const tz = "Asia/Jakarta";
 
 // ---- helpers ----
@@ -100,27 +101,73 @@ function isOpenNow(hours: OpeningHours): { open: boolean; until?: string } {
   return { open: false };
 }
 
+function parseOpeningHours(json: string | null | undefined): OpeningHours {
+  if (!json) return DEFAULT_HOURS;
+  try {
+    const parsed = JSON.parse(json);
+    // Validate structure
+    const result: OpeningHours = { ...DEFAULT_HOURS };
+    for (const key of DAY_LABELS) {
+      if (parsed[key.key] && typeof parsed[key.key] === "object") {
+        result[key.key] = {
+          open: Boolean(parsed[key.key].open),
+          allDay: Boolean(parsed[key.key].allDay),
+          ranges: Array.isArray(parsed[key.key].ranges) ? parsed[key.key].ranges : [],
+        };
+      }
+    }
+    return result;
+  } catch {
+    return DEFAULT_HOURS;
+  }
+}
+
 export default function InformasiCafePage() {
-  // -------- Basic sections (About + Alamat) --------
-  const [about, setAbout] = useState<string>("Renjana Coffee adalah tempat nongkrong nyaman dengan suasana industrial modern...");
-  const [address, setAddress] = useState<string>("Jl. Depok, Kembangan Kidul, Kembangan Tengah, Kota Semarang, Jawa Tengah");
+  const [cafe, setCafe] = useState<Cafe | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // -------- Basic sections (Name + About + Alamat) --------
+  const [cafeName, setCafeName] = useState<string>("");
+  const [about, setAbout] = useState<string>("");
+  const [address, setAddress] = useState<string>("");
 
   // -------- Opening Hours --------
-  const [hours, setHours] = useState<OpeningHours>(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return DEFAULT_HOURS;
-  });
+  const [hours, setHours] = useState<OpeningHours>(DEFAULT_HOURS);
+
+  // Fetch cafe data on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const cafeData = await apiGetMyCafe();
+        if (!mounted) return;
+        if (cafeData) {
+          setCafe(cafeData);
+          setCafeName(cafeData.name || "");
+          setAbout(cafeData.description || "");
+          setAddress(cafeData.address || "");
+          setHours(parseOpeningHours(cafeData.opening_hours as unknown as string));
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error("Failed to fetch cafe:", err);
+          setError("Gagal memuat data cafe");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const status = useMemo(() => isOpenNow(hours), [hours]);
-  const nowLabel = useMemo(() => nowJakarta().label, [hours]); // re-evaluated when hours change
+  const nowLabel = useMemo(() => nowJakarta().label, [hours]);
 
   // tick per 30s biar indikator update
   useEffect(() => {
     const id = setInterval(() => {
-      // trigger re-render dengan update state ringan
       setHours((h) => ({ ...h }));
     }, 30_000);
     return () => clearInterval(id);
@@ -209,46 +256,105 @@ export default function InformasiCafePage() {
     return errs;
   };
 
-  const handleSaveHours = () => {
+  const handleSaveCafe = async () => {
+    if (!cafe?.id) {
+      alert("Cafe tidak ditemukan");
+      return;
+    }
+
     const errs = validateAll();
     if (errs.length) {
       alert("Periksa jam operasional:\n- " + errs.join("\n- "));
       return;
     }
+
+    setSaving(true);
+    setError(null);
+
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(hours));
-      alert("Jam operasional disimpan (local). Nanti bisa disinkron ke backend.");
-    } catch {
-      alert("Gagal menyimpan ke localStorage.");
+      // Prepare opening_hours JSON
+      const openingHoursJson: Record<string, unknown> = {};
+      for (const { key } of DAY_LABELS) {
+        const d = hours[key];
+        openingHoursJson[key] = {
+          open: d.open,
+          allDay: d.allDay,
+          ranges: d.ranges,
+        };
+      }
+
+      await apiUpdateCafe(cafe.id, {
+        name: cafeName,
+        description: about,
+        address: address,
+        opening_hours: openingHoursJson as unknown as Record<string, string>,
+      });
+
+      alert("Informasi cafe berhasil disimpan!");
+    } catch (err) {
+      console.error("Failed to save cafe:", err);
+      setError(err instanceof Error ? err.message : "Gagal menyimpan data cafe");
+      alert("Gagal menyimpan data cafe");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const resetTemplate = () => {
-    if (confirm("Kembalikan ke template default?")) {
-      setHours(DEFAULT_HOURS);
-    }
-  };
+  if (loading) {
+    return (
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+          <div className="h-48 bg-gray-200 rounded"></div>
+        </div>
+      </section>
+    );
+  }
 
-  // (opsional) simpan about/address ke localStorage agar tidak hilang
-  useEffect(() => {
-    try {
-      localStorage.setItem("mitra_about", about);
-      localStorage.setItem("mitra_address", address);
-    } catch {}
-  }, [about, address]);
-
-  useEffect(() => {
-    try {
-      const a = localStorage.getItem("mitra_about");
-      const ad = localStorage.getItem("mitra_address");
-      if (a) setAbout(a);
-      if (ad) setAddress(ad);
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  if (!cafe) {
+    return (
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center text-gray-600">
+          <p>Anda belum memiliki cafe. Silakan daftar sebagai mitra terlebih dahulu.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 text-[#1b1405]">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          {error}
+        </div>
+      )}
+
+      {/* Nama Cafe */}
+      <div className="bg-white p-6 rounded-lg border border-gray-300/40 shadow-md hover:shadow-lg">
+        <h3 className="text-xl font-bold mb-2">Nama Cafe</h3>
+        <p className="text-sm mb-4">Ubah nama coffeeshop anda di sini!</p>
+        <input
+          type="text"
+          className="w-full p-3 border border-gray-300/80 rounded-md bg-white focus:outline-none"
+          value={cafeName}
+          onChange={(e) => setCafeName(e.target.value)}
+          placeholder="Nama coffeeshop..."
+        />
+        <div className="flex gap-3 justify-end mt-3">
+          <button
+            className="bg-[#2b210a] text-white px-4 py-2 rounded-md disabled:opacity-50"
+            onClick={handleSaveCafe}
+            disabled={saving}
+          >
+            {saving ? "Menyimpan..." : "Simpan Nama"}
+          </button>
+          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={() => setCafeName(cafe.name || "")}>
+            Batalkan
+          </button>
+        </div>
+      </div>
+
       {/* About */}
       <div className="bg-white p-6 rounded-lg border border-gray-300/40 shadow-md hover:shadow-lg">
         <h3 className="text-xl font-bold mb-2">About</h3>
@@ -258,15 +364,17 @@ export default function InformasiCafePage() {
           rows={4}
           value={about}
           onChange={(e) => setAbout(e.target.value)}
+          placeholder="Deskripsi coffeeshop..."
         />
         <div className="flex gap-3 justify-end mt-3">
           <button
-            className="bg-[#2b210a] text-white px-4 py-2 rounded-md"
-            onClick={() => alert("About disimpan (local). Nanti sambung backend.")}
+            className="bg-[#2b210a] text-white px-4 py-2 rounded-md disabled:opacity-50"
+            onClick={handleSaveCafe}
+            disabled={saving}
           >
-            Submit
+            {saving ? "Menyimpan..." : "Simpan About"}
           </button>
-          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={() => setAbout("")}>
+          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={() => setAbout(cafe.description || "")}>
             Batalkan
           </button>
         </div>
@@ -385,38 +493,39 @@ export default function InformasiCafePage() {
         </div>
 
         <div className="flex gap-3 justify-end mt-5">
-          <button className="bg-[#2b210a] text-white px-4 py-2 rounded-md" onClick={handleSaveHours}>
-            Submit
+          <button
+            className="bg-[#2b210a] text-white px-4 py-2 rounded-md disabled:opacity-50"
+            onClick={handleSaveCafe}
+            disabled={saving}
+          >
+            {saving ? "Menyimpan..." : "Simpan Jam Operasional"}
           </button>
-          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={resetTemplate}>
+          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={() => setHours(parseOpeningHours(cafe.opening_hours as unknown as string))}>
             Kembalikan Default
           </button>
         </div>
-
-        <p className="text-xs text-gray-500 mt-2">
-          Catatan: Saat ini disimpan lokal. Setelah frontend selesai, kita hubungkan dengan backend
-          (field <code>opening_hours</code> JSON) via <code>apiUpdateCafe</code>.
-        </p>
       </div>
 
       {/* Alamat Cafe */}
       <div className="bg-white p-6 rounded-lg border border-gray-300/40 shadow-md hover:shadow-lg">
         <h3 className="text-xl font-bold mb-2">Alamat Cafe</h3>
-        <p className="text-sm mb-3">Masukan alamat cafe anda disini!</p>
+        <p className="text-sm mb-3">Masukan alamat cafe anda here!</p>
         <textarea
           className="w-full p-3 border border-gray-300/80 rounded-md bg-white focus:outline-none"
           rows={2}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
+          placeholder="Jl. ..."
         />
         <div className="flex gap-3 justify-end mt-3">
           <button
-            className="bg-[#2b210a] text-white px-4 py-2 rounded-md"
-            onClick={() => alert("Alamat disimpan (local). Nanti sambung backend.")}
+            className="bg-[#2b210a] text-white px-4 py-2 rounded-md disabled:opacity-50"
+            onClick={handleSaveCafe}
+            disabled={saving}
           >
-            Submit
+            {saving ? "Menyimpan..." : "Simpan Alamat"}
           </button>
-          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={() => setAddress("")}>
+          <button className="bg-gray-200 px-4 py-2 rounded-md" onClick={() => setAddress(cafe.address || "")}>
             Batalkan
           </button>
         </div>
@@ -424,3 +533,4 @@ export default function InformasiCafePage() {
     </section>
   );
 }
+

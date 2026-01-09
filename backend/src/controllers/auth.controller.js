@@ -35,6 +35,7 @@ exports.register = async (req, res, next) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
       },
     });
@@ -53,12 +54,12 @@ exports.login = async (req, res, next) => {
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Email tidak terdaftar' });
     }
 
     const ok = await comparePassword(password, user.password_hash);
     if (!ok) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Password yang Anda masukkan salah' });
     }
 
     const token = signToken(user);
@@ -69,6 +70,7 @@ exports.login = async (req, res, next) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
       },
     });
@@ -87,7 +89,6 @@ exports.me = async (req, res, next) => {
         'email',
         'phone',
         'role',
-        'avatar_url',
         'created_at',
         'updated_at',
       ],
@@ -151,6 +152,7 @@ exports.registerMitra = async (req, res, next) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
       },
       cafe,

@@ -1,6 +1,6 @@
 // backend/src/controllers/cafes.controller.js
-const { Op } = require("sequelize");
-const { Cafe, Menu, CafeGallery } = require("../models");
+const { Op, fn, col, literal } = require("sequelize");
+const { Cafe, Menu, CafePhoto, Review } = require("../models");
 
 function haversine(lat1, lon1, lat2, lon2) {
   function toRad(v) {
@@ -12,8 +12,8 @@ function haversine(lat1, lon1, lat2, lon2) {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -39,23 +39,37 @@ function toPublicUrl(req, p) {
   return `${baseUrl(req)}${clean}`;
 }
 
-function normalizeCafe(req, cafeJson) {
-  const out = {
-    ...cafeJson,
-    cover_url: cafeJson.cover_url ? toPublicUrl(req, cafeJson.cover_url) : null,
-    logo_url: cafeJson.logo_url ? toPublicUrl(req, cafeJson.logo_url) : null,
-  };
+function normalizeCafe(req, cafeJson, photos = []) {
+  // Convert photo URLs to public URLs
+  const gallery_urls = photos.map(p =>
+    p.url ? toPublicUrl(req, p.url) : null
+  ).filter(Boolean);
 
-  // normalize galleries (kalau ikut di-include)
-  const galleriesRaw = cafeJson.galleries || cafeJson.CafeGalleries || null;
-  if (Array.isArray(galleriesRaw)) {
-    out.galleries = galleriesRaw.map((g) => ({
-      ...g,
-      image_url: g.image_url ? toPublicUrl(req, g.image_url) : null,
-    }));
+  // Parse opening_hours if it's a string (handle double-encoded JSON)
+  let opening_hours = cafeJson.opening_hours;
+  if (typeof opening_hours === "string") {
+    try {
+      // Try to parse - it might be a double-encoded JSON
+      const firstParse = JSON.parse(opening_hours);
+      if (typeof firstParse === "string") {
+        // It was double-encoded, parse again
+        opening_hours = JSON.parse(firstParse);
+      } else {
+        opening_hours = firstParse;
+      }
+    } catch (e) {
+      // Keep as-is if parsing fails
+      opening_hours = null;
+    }
   }
 
-  return out;
+  return {
+    ...cafeJson,
+    opening_hours,
+    cover_url: cafeJson.cover_url ? toPublicUrl(req, cafeJson.cover_url) : null,
+    logo_url: cafeJson.logo_url ? toPublicUrl(req, cafeJson.logo_url) : null,
+    gallery_urls,
+  };
 }
 
 // fallback converter kalau masih ada yg ngirim file.path
@@ -89,19 +103,54 @@ exports.list = async (req, res, next) => {
       limit: Number(limit),
       offset: Number(offset),
       order: [["id", "ASC"]],
-      include: CafeGallery
-        ? [
-            {
-              model: CafeGallery,
-              as: "galleries",
-              attributes: ["id", "image_url", "createdAt", "updatedAt"],
-              required: false,
-            },
-          ]
-        : [],
+      logging: console.log, // Debug logging
     });
 
-    let data = rows.map((r) => normalizeCafe(req, r.toJSON()));
+    // Get cafe IDs
+    const cafeIds = rows.map(r => r.id);
+
+    // Fetch all photos for these cafes
+    const photos = await CafePhoto.findAll({
+      where: { cafe_id: cafeIds },
+      order: [["id", "ASC"]],
+    });
+
+    // Group photos by cafe_id
+    const photosByCafe = photos.reduce((acc, photo) => {
+      if (!acc[photo.cafe_id]) acc[photo.cafe_id] = [];
+      acc[photo.cafe_id].push(photo);
+      return acc;
+    }, {});
+
+    // Fetch ratings and review counts for all cafes (exclude live comments)
+    const ratingStats = await Review.findAll({
+      attributes: [
+        "cafe_id",
+        [fn("AVG", col("rating")), "avg_rating"],
+        [fn("COUNT", col("id")), "review_count"],
+      ],
+      where: { cafe_id: cafeIds, is_live_comment: false },
+      group: ["cafe_id"],
+    });
+
+    // Create a map for easy lookup
+    const ratingMap = ratingStats.reduce((acc, r) => {
+      acc[r.cafe_id] = {
+        avg_rating: parseFloat(r.get("avg_rating")) || 0,
+        review_count: parseInt(r.get("review_count")) || 0,
+      };
+      return acc;
+    }, {});
+
+    let data = rows.map((r) => {
+      const cafeData = normalizeCafe(req, r.toJSON(), photosByCafe[r.id] || []);
+      const stats = ratingMap[r.id] || { avg_rating: 0, review_count: 0 };
+      return {
+        ...cafeData,
+        avg_rating: stats.avg_rating,
+        review_count: stats.review_count,
+      };
+    });
 
     if (
       lat &&
@@ -128,27 +177,24 @@ exports.list = async (req, res, next) => {
 
     res.json({ data });
   } catch (e) {
-    next(e);
+    console.error("list cafes error:", e);
+    // Return empty data instead of error to prevent frontend crash
+    res.json({ data: [] });
   }
 };
 
 exports.detail = async (req, res, next) => {
   try {
-    const cafe = await Cafe.findByPk(req.params.id, {
-      include: CafeGallery
-        ? [
-            {
-              model: CafeGallery,
-              as: "galleries",
-              attributes: ["id", "image_url", "createdAt", "updatedAt"],
-              required: false,
-            },
-          ]
-        : [],
+    const cafe = await Cafe.findByPk(req.params.id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    // Fetch gallery photos
+    const photos = await CafePhoto.findAll({
+      where: { cafe_id: cafe.id },
+      order: [["id", "ASC"]],
     });
 
-    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
-    res.json(normalizeCafe(req, cafe.toJSON()));
+    res.json(normalizeCafe(req, cafe.toJSON(), photos));
   } catch (e) {
     next(e);
   }
@@ -177,7 +223,19 @@ exports.update = async (req, res, next) => {
     ];
 
     for (const k of allowed) {
-      if (req.body[k] !== undefined) cafe[k] = req.body[k];
+      if (req.body[k] !== undefined) {
+        // Handle opening_hours: if it's a string, try to parse it as JSON
+        if (k === "opening_hours" && typeof req.body[k] === "string") {
+          try {
+            cafe[k] = JSON.parse(req.body[k]);
+          } catch (e) {
+            // If parsing fails, keep the string as-is
+            cafe[k] = req.body[k];
+          }
+        } else {
+          cafe[k] = req.body[k];
+        }
+      }
     }
 
     await cafe.save();
@@ -208,6 +266,7 @@ exports.updateMedia = async (req, res, next) => {
     if (coverFile?.filename) {
       cafe.cover_url = `/uploads/covers/${coverFile.filename}`;
     } else if (coverFile?.path) {
+      // fallback kalau ada yg beda
       const p = toUploadsPath(coverFile.path);
       if (!p) return res.status(500).json({ message: "Invalid cover path" });
       cafe.cover_url = p;
@@ -222,22 +281,7 @@ exports.updateMedia = async (req, res, next) => {
     }
 
     await cafe.save();
-
-    // return with normalized urls
-    const fresh = await Cafe.findByPk(cafe.id, {
-      include: CafeGallery
-        ? [
-            {
-              model: CafeGallery,
-              as: "galleries",
-              attributes: ["id", "image_url", "createdAt", "updatedAt"],
-              required: false,
-            },
-          ]
-        : [],
-    });
-
-    res.json(normalizeCafe(req, fresh ? fresh.toJSON() : cafe.toJSON()));
+    res.json(normalizeCafe(req, cafe.toJSON()));
   } catch (e) {
     next(e);
   }
@@ -254,90 +298,6 @@ exports.menu = async (req, res, next) => {
     next(e);
   }
 };
-
-// TAMBAHKAN di backend/src/controllers/cafes.controller.js
-
-exports.addGallery = async (req, res, next) => {
-  try {
-    const { Cafe, CafeGallery } = require("../models");
-
-    const cafe = await Cafe.findByPk(req.params.id);
-    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
-
-    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    const files = Array.isArray(req.files) ? req.files : [];
-    if (!files.length) {
-      return res.status(400).json({ message: "No gallery files uploaded" });
-    }
-
-    if (!CafeGallery) {
-      return res.status(500).json({ message: "CafeGallery model not found" });
-    }
-
-    const rows = files
-      .filter((f) => f && f.filename)
-      .map((f) => ({
-        cafe_id: cafe.id,
-        image_url: `/uploads/galleries/${f.filename}`,
-      }));
-
-    if (!rows.length) {
-      return res.status(400).json({ message: "No valid gallery files" });
-    }
-
-    await CafeGallery.bulkCreate(rows);
-
-    // return cafe detail (include galleries)
-    const fresh = await Cafe.findByPk(cafe.id, {
-      include: [
-        {
-          model: CafeGallery,
-          as: "galleries",
-          attributes: ["id", "image_url", "createdAt", "updatedAt"],
-          required: false,
-        },
-      ],
-    });
-
-    // pakai normalizeCafe yang sudah ada di file controller
-    res.json(normalizeCafe(req, fresh.toJSON()));
-  } catch (e) {
-    next(e);
-  }
-};
-
-exports.deleteGallery = async (req, res, next) => {
-  try {
-    const { Cafe, CafeGallery } = require("../models");
-
-    const cafe = await Cafe.findByPk(req.params.id);
-    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
-
-    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    if (!CafeGallery) {
-      return res.status(500).json({ message: "CafeGallery model not found" });
-    }
-
-    const row = await CafeGallery.findOne({
-      where: { id: req.params.galleryId, cafe_id: cafe.id },
-    });
-
-    if (!row) return res.status(404).json({ message: "Gallery not found" });
-
-    await row.destroy();
-
-    return res.json({ ok: true });
-  } catch (e) {
-    next(e);
-  }
-};
-
 
 exports.reports = async (req, res, next) => {
   try {
@@ -375,3 +335,138 @@ exports.reports = async (req, res, next) => {
     next(e);
   }
 };
+
+// Upload gallery photos for a cafe
+exports.uploadGallery = async (req, res, next) => {
+  try {
+    const cafe = await Cafe.findByPk(req.params.id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const files = req.files || {};
+    const photoFiles = files.photos || [];
+
+    if (!photoFiles.length) {
+      return res.status(400).json({ message: "No photos uploaded" });
+    }
+
+    // Create CafePhoto records for all uploaded photos (no limit)
+    const createdPhotos = await Promise.all(photoFiles.map(file =>
+      CafePhoto.create({
+        cafe_id: cafe.id,
+        url: `/uploads/gallery/${file.filename}`,
+      })
+    ));
+
+    res.json({
+      message: `Added ${createdPhotos.length} photo(s)`,
+      photos: createdPhotos.map(p => ({
+        id: p.id,
+        url: toPublicUrl(req, p.url),
+      })),
+    });
+  } catch (e) {
+    next(e);
+  }
+};
+
+// Delete a gallery photo
+exports.deleteGalleryPhoto = async (req, res, next) => {
+  try {
+    const photo = await CafePhoto.findByPk(req.params.photoId);
+    if (!photo) return res.status(404).json({ message: "Photo not found" });
+
+    const cafe = await Cafe.findByPk(photo.cafe_id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    await photo.destroy();
+    res.json({ message: "Photo deleted" });
+  } catch (e) {
+    next(e);
+  }
+};
+
+// Archive a gallery photo (soft delete - won't show in gallery)
+exports.archiveGalleryPhoto = async (req, res, next) => {
+  try {
+    const photo = await CafePhoto.findByPk(req.params.photoId);
+    if (!photo) return res.status(404).json({ message: "Photo not found" });
+
+    const cafe = await Cafe.findByPk(photo.cafe_id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    photo.is_archived = true;
+    await photo.save();
+
+    res.json({ message: "Photo archived", photo: { id: photo.id, is_archived: photo.is_archived } });
+  } catch (e) {
+    next(e);
+  }
+};
+
+// Unarchive a gallery photo
+exports.unarchiveGalleryPhoto = async (req, res, next) => {
+  try {
+    const photo = await CafePhoto.findByPk(req.params.photoId);
+    if (!photo) return res.status(404).json({ message: "Photo not found" });
+
+    const cafe = await Cafe.findByPk(photo.cafe_id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    photo.is_archived = false;
+    await photo.save();
+
+    res.json({ message: "Photo restored", photo: { id: photo.id, is_archived: photo.is_archived } });
+  } catch (e) {
+    next(e);
+  }
+};
+
+// Get all photos including archived for a cafe
+exports.getAllGalleryPhotos = async (req, res, next) => {
+  try {
+    const cafe = await Cafe.findByPk(req.params.id);
+    if (!cafe) return res.status(404).json({ message: "Cafe not found" });
+
+    if (req.user.role !== "admin" && cafe.owner_id !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const photos = await CafePhoto.findAll({
+      where: { cafe_id: req.params.id },
+      order: [["id", "DESC"]],
+    });
+
+    const publicPhotos = photos.map(p => ({
+      id: p.id,
+      url: toPublicUrl(req, p.url),
+      is_archived: p.is_archived,
+      caption: p.caption,
+      created_at: p.created_at,
+    }));
+
+    res.json({
+      data: publicPhotos,
+      active_count: photos.filter(p => !p.is_archived).length,
+      archived_count: photos.filter(p => p.is_archived).length,
+    });
+  } catch (e) {
+    next(e);
+  }
+};
+

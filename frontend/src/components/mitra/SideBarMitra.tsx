@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Info,
   Utensils,
+  Image,
+  User,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -46,11 +48,10 @@ export default function Sidebar({ currentPage }: SidebarProps) {
             {/* Dashboard */}
             <Link
               href="/mitra/dashboard"
-              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${
-                pathname === "/mitra/dashboard" || currentPage === "dashboard"
-                  ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
-                  : ""
-              }`}
+              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${pathname === "/mitra/dashboard" || currentPage === "dashboard"
+                ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
+                : ""
+                }`}
             >
               <LayoutDashboard size={18} />
               Dashboard
@@ -60,12 +61,11 @@ export default function Sidebar({ currentPage }: SidebarProps) {
             <div>
               <button
                 onClick={() => setOpenCafe(!openCafe)}
-                className={`flex items-center justify-between w-full px-6 py-3 hover:bg-[#f3f1ed] ${
-                  pathname.startsWith("/mitra/manajemen-cafe") ||
+                className={`flex items-center justify-between w-full px-6 py-3 hover:bg-[#f3f1ed] ${pathname.startsWith("/mitra/manajemen-cafe") ||
                   currentPage?.startsWith("manajemen-cafe")
-                    ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
-                    : ""
-                }`}
+                  ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
+                  : ""
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <Coffee size={18} />
@@ -79,23 +79,31 @@ export default function Sidebar({ currentPage }: SidebarProps) {
                 <div className="ml-10 mt-1 text-sm space-y-1">
                   <Link
                     href="/mitra/manajemen-cafe/informasi"
-                    className={`flex items-center gap-2 ${
-                      pathname === "/mitra/manajemen-cafe/informasi" ||
+                    className={`flex items-center gap-2 ${pathname === "/mitra/manajemen-cafe/informasi" ||
                       currentPage === "manajemen-cafe-informasi"
-                        ? "font-semibold text-[#2b210a]"
-                        : "hover:text-[#2b210a]/70"
-                    }`}
+                      ? "font-semibold text-[#2b210a]"
+                      : "hover:text-[#2b210a]/70"
+                      }`}
                   >
                     <Info size={14} /> Informasi Cafe
                   </Link>
                   <Link
+                    href="/mitra/manajemen-cafe/galeri"
+                    className={`flex items-center gap-2 ${pathname === "/mitra/manajemen-cafe/galeri" ||
+                      currentPage === "manajemen-cafe-galeri"
+                      ? "font-semibold text-[#2b210a]"
+                      : "hover:text-[#2b210a]/70"
+                      }`}
+                  >
+                    <Image size={14} /> Galeri Foto
+                  </Link>
+                  <Link
                     href="/mitra/manajemen-cafe/menu"
-                    className={`flex items-center gap-2 ${
-                      pathname === "/mitra/manajemen-cafe/menu" ||
+                    className={`flex items-center gap-2 ${pathname === "/mitra/manajemen-cafe/menu" ||
                       currentPage === "manajemen-cafe-menu"
-                        ? "font-semibold text-[#2b210a]"
-                        : "hover:text-[#2b210a]/70"
-                    }`}
+                      ? "font-semibold text-[#2b210a]"
+                      : "hover:text-[#2b210a]/70"
+                      }`}
                   >
                     <Utensils size={14} /> Kelola Menu
                   </Link>
@@ -106,11 +114,10 @@ export default function Sidebar({ currentPage }: SidebarProps) {
             {/* Reviews */}
             <Link
               href="/mitra/ulasan"
-              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${
-                pathname === "/mitra/reviews" || currentPage === "reviews"
-                  ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
-                  : ""
-              }`}
+              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${pathname === "/mitra/reviews" || currentPage === "reviews"
+                ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
+                : ""
+                }`}
             >
               <FileText size={18} />
               Ulasan
@@ -119,14 +126,25 @@ export default function Sidebar({ currentPage }: SidebarProps) {
             {/* Laporan */}
             <Link
               href="/mitra/laporan"
-              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${
-                pathname === "/mitra/laporan" || currentPage === "laporan"
-                  ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
-                  : ""
-              }`}
+              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${pathname === "/mitra/laporan" || currentPage === "laporan"
+                ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
+                : ""
+                }`}
             >
               <BarChart2 size={18} />
               Laporan
+            </Link>
+
+            {/* Profil */}
+            <Link
+              href="/mitra/profil"
+              className={`flex items-center gap-3 px-6 py-3 hover:bg-[#f3f1ed] ${pathname === "/mitra/profil"
+                ? "bg-[#f3f1ed] font-semibold text-[#2b210a]"
+                : ""
+                }`}
+            >
+              <User size={18} />
+              Profil
             </Link>
           </nav>
         </div>

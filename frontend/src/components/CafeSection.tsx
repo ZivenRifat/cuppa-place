@@ -1,4 +1,3 @@
-// src/components/CafeSection.tsx
 "use client";
 
 import Image from "next/image";
@@ -18,7 +17,7 @@ export default function CafeSection() {
     (async () => {
       try {
         setLoading(true);
-        const res = await apiListCafes(); 
+        const res = await apiListCafes();
         if (!mounted) return;
         setCafes(res.data ?? []);
       } catch {
@@ -95,15 +94,23 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
   const logo = resolveCafeImage(cafe.logo_url);
   const photo = resolveCafeImage(cafe.photo_url);
 
+  const galleryImages = (cafe.gallery_urls || [])
+    .map((url): string | null => resolveCafeImage(url))
+    .filter((url): url is string => Boolean(url));
 
   const baseImages: string[] = [];
-  if (cover) baseImages.push(cover);
-  else if (logo) baseImages.push(logo);
-  else if (photo) baseImages.push(photo);
 
-  // fallback ke gambar lokal yang PASTI ada
+  if (galleryImages.length > 0) {
+    baseImages.push(...galleryImages);
+  } else if (photo) {
+    baseImages.push(photo);
+  } else if (cover) {
+    baseImages.push(cover);
+  } else if (logo) {
+    baseImages.push(logo);
+  }
+
   const placeholder = "/img/login/LoginPage.jpg";
-
   const images = baseImages.length > 0 ? baseImages : [placeholder];
   const imagesExtended = [...images, images[0]];
 
@@ -137,8 +144,6 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
   }, [idx, images.length, transitionMs]);
 
   const slideWidthPercent = 100 / slideCount;
-
-  const slug = cafe.slug || String(cafe.id);
   const mapsHref = getMapsLink(cafe);
 
   return (
@@ -148,42 +153,40 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
         onMouseEnter={() => setHoverImage(true)}
         onMouseLeave={() => setHoverImage(false)}
       >
-        <div
-          ref={slideRef}
-          className={`flex ${isTransitioning ? "transition-transform" : ""}`}
-          style={{
-            width: `${slideCount * 100}%`,
-            transitionDuration: isTransitioning ? `${transitionMs}ms` : "0ms",
-            transform: `translateX(-${idx * slideWidthPercent}%)`,
-          }}
-        >
-          {imagesExtended.map((src, i) => (
-            <div
-              key={`${src}-${i}`}
-              style={{ width: `${slideWidthPercent}%` }}
-              className="relative h-[380px] flex-shrink-0"
-            >
-              <Image
-                src={src}
-                alt={`${cafe.name}-${i}`}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 33vw"
-                priority={i === 0}
-              />
-            </div>
-          ))}
+        <div className="absolute inset-0 bg-gray-100 rounded-b-3xl overflow-hidden">
+          <div
+            ref={slideRef}
+            className={`flex ${isTransitioning ? "transition-transform" : ""}`}
+            style={{
+              width: `${slideCount * 100}%`,
+              transitionDuration: isTransitioning ? `${transitionMs}ms` : "0ms",
+              transform: `translateX(-${idx * slideWidthPercent}%)`,
+            }}
+          >
+            {imagesExtended.map((src, i) => (
+              <div
+                key={`${src}-${i}`}
+                style={{ width: `${slideWidthPercent}%` }}
+                className="relative h-[380px] flex-shrink-0"
+              >
+                <Image
+                  src={src}
+                  alt={`${cafe.name}-${i}`}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  priority={i === 0}
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div
-          className={`absolute bottom-0 left-0 w-full bg-white/20 backdrop-blur-sm text-white flex flex-col items-center justify-end transition-all duration-700 ease-in-out ${
-            hoverImage ? "h-full" : "h-[60px]"
-          }`}
+          className={`absolute bottom-0 left-0 w-full  bg-black/20 backdrop-blur-sm text-white flex flex-col items-center justify-end transition-all duration-700 ease-in-out ${hoverImage ? "h-full" : "h-[60px]"}`}
         >
           <div
-            className={`flex flex-col items-center transition-all duration-700 ease-in-out ${
-              hoverImage ? "translate-y-[-120px]" : "translate-y-[40px]"
-            }`}
+            className={`flex flex-col items-center transition-all duration-700 ease-in-out ${hoverImage ? "translate-y-[-120px]" : "translate-y-[40px]"}`}
           >
             <p className="text-2xl font-bold tracking-wide text-center">
               {cafe.name}
@@ -191,11 +194,7 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
 
             <button
               onClick={() => router.push(`/pengguna/coffeeshop/${cafe.id}`)}
-              className={`mt-4 bg-white text-[#2b210a] font-semibold px-5 py-2 rounded-full shadow-sm transition-all duration-700 ease-in-out ${
-                hoverImage
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-5"
-              } hover:bg-[#4b3b09] hover:text-white`}
+              className={`mt-4 bg-white text-[#2b210a] font-semibold px-5 py-2 rounded-full shadow-sm transition-all duration-700 ease-in-out ${hoverImage ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"} hover:bg-[#4b3b09] hover:text-white`}
             >
               Lihat Selengkapnya
             </button>
@@ -210,8 +209,10 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
           rel="noopener noreferrer"
           className="group/location relative flex items-center justify-center w-full transition-all duration-500"
         >
+          {/* Hover Background */}
           <div className="w-80 h-10 absolute inset-0 rounded-xl bg-transparent group-hover/location:bg-[#271F01] transition-all duration-500"></div>
 
+          {/* Wrapper konten */}
           <div className="flex items-center justify-center gap-2 z-10 py-1">
             <MapPin className="w-8 h-8 text-[#4b3b09] transition-all duration-500 group-hover/location:translate-x-[-24px] group-hover/location:text-white" />
 
@@ -220,6 +221,7 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
             </span>
           </div>
 
+          {/* Hover Text */}
           <span className="absolute z-10 justify-center text-white font-bold text-[16px] opacity-0 group-hover/location:opacity-100 transition-all duration-500 translate-y-2 group-hover/location:translate-y-0">
             Buka di Google Maps
           </span>
@@ -231,10 +233,10 @@ function CafeCard({ cafe }: { cafe: Cafe }) {
 
 function SkeletonCard() {
   return (
-    <div className="relative w-[280px] sm:w-[300px] md:w-[350px] rounded-2xl overflow-hidden shadow-md bg-white border border-gray-200">
-      <div className="w-full h-[380px] bg-neutral-200 animate-pulse" />
-      <div className="p-4">
-        <div className="h-5 w-1/2 bg-neutral-200 rounded mb-2 animate-pulse" />
+    <div className="relative w-[350px] h-[450px] rounded-2xl overflow-hidden shadow-lg bg-white border border-gray-200">
+      <div className="w-full h-[350px] bg-neutral-200 animate-pulse rounded-b-3xl" />
+      <div className="p-4 text-center bg-white border-t border-gray-100">
+        <div className="h-5 w-1/2 bg-neutral-200 rounded mb-2 animate-pulse mx-auto" />
         <div className="h-4 w-full bg-neutral-200 rounded animate-pulse" />
       </div>
     </div>
@@ -254,6 +256,7 @@ function getMapsLink(cafe: Cafe): string {
 function toNum(v: number | string | null | undefined): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  const n = parseFloat(v);
+  const n = parseFloat(v as string);
   return Number.isFinite(n) ? n : null;
 }
+

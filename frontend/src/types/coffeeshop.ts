@@ -5,6 +5,7 @@ export interface Review {
   comment: string;
   date: string;
   avatar?: string;
+  created_at?: string;
 }
 
 export interface MenuItem {
@@ -21,6 +22,6 @@ export interface CoffeeShop {
   rating: number;
   openHours: string;
   images: string[];
-  menus: MenuItem[];   
+  menus: MenuItem[];
   reviews: Review[];
 }

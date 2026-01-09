@@ -8,6 +8,7 @@ import type {
   MenuItem,
   ReportPeriod,
   ReportResp,
+  User,
 } from "@/types/domain";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
@@ -23,7 +24,18 @@ export function setAuthToken(token: string | null | undefined) {
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  // First try localStorage
+  const localToken = window.localStorage.getItem(TOKEN_KEY);
+  if (localToken) return localToken;
+
+  // Fallback to cookie if localStorage doesn't have token
+  const cookies = document.cookie.split("; ");
+  const tokenCookie = cookies.find((row) => row.startsWith(TOKEN_KEY + "="));
+  if (tokenCookie) {
+    return tokenCookie.split("=")[1];
+  }
+
+  return null;
 }
 
 // =================== SAFE HELPERS (NO ANY) ===================
@@ -39,9 +51,11 @@ function readStringProp(obj: Record<string, unknown>, key: string): string | nul
 function extractToken(resp: unknown): string | null {
   if (!isRecord(resp)) return null;
 
+  // token / access_token di root
   const rootToken = readStringProp(resp, "token") ?? readStringProp(resp, "access_token");
   if (rootToken) return rootToken;
 
+  // token / access_token di resp.data (kalau ada)
   const dataVal = resp["data"];
   if (isRecord(dataVal)) {
     const dataToken =
@@ -56,7 +70,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOpts = RequestInit & {
   timeoutMs?: number;
-  auth?: boolean; // default true
+  auth?: boolean; // default true, set false untuk endpoint public
 };
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
@@ -77,12 +91,14 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     ...(opts.headers as Record<string, string>),
   };
 
+  // AUTO AUTH HEADER (Bearer)
   const useAuth = opts.auth !== false;
   if (useAuth) {
     const token = getAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // JSON content-type (JANGAN set untuk FormData)
   if (opts.body && !(opts.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -97,8 +113,13 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     if (timeout) clearTimeout(timeout);
   });
 
+  // 401 handling - clear BOTH cookie and localStorage
   if (res.status === 401) {
     setAuthToken(null);
+    // Also clear cookie
+    if (typeof document !== "undefined") {
+      document.cookie = "cuppa_token=; path=/; max-age=0";
+    }
     throw new Error("Unauthorized");
   }
 
@@ -134,6 +155,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   return (await res.text()) as unknown as T;
 }
 
+/** Multipart helper */
 async function requestMultipart<T>(
   path: string,
   form: FormData,
@@ -224,32 +246,25 @@ export async function apiVerifyOtp(payload: {
 
 // =================== MITRA ===================
 
+// Optional: tipe response register mitra (biar ga pakai any)
 export type RegisterMitraResp = AuthResp & {
-  cafe?: {
-    id?: number;
-    name?: string;
-    logo_url?: string | null;
-    cover_url?: string | null;
-    galleries?: { id: number; image_url: string | null }[];
-  };
+  cafe?: { id?: number; name?: string; logo_url?: string | null; cover_url?: string | null };
 };
 
+// ✅ Register Mitra via FormData (sekali jalan bisa upload logo/cover)
 export async function apiRegisterMitra(payload: {
   name: string;
   email: string;
   password: string;
   phone?: string;
-
   cafe_name: string;
   address?: string;
   lat?: number;
   lng?: number;
   instagram?: string;
   opening_hours?: unknown;
-
   logo?: File | null;
   cover?: File | null;
-  gallery?: File[]; // ✅ NEW
 }) {
   const fd = new FormData();
   fd.append("name", payload.name);
@@ -269,12 +284,6 @@ export async function apiRegisterMitra(payload: {
 
   if (payload.logo) fd.append("logo", payload.logo);
   if (payload.cover) fd.append("cover", payload.cover);
-
-  // ✅ append multiple gallery files
-  const galleryFiles = payload.gallery ?? [];
-  for (const f of galleryFiles) {
-    if (f instanceof File) fd.append("gallery", f);
-  }
 
   const resp = await request<RegisterMitraResp>(`/api/mitra/register`, {
     method: "POST",
@@ -352,6 +361,29 @@ export async function apiCafeReviews(
   });
 }
 
+// Live comments API (separate from ratings/reviews)
+export async function apiCreateLiveComment(
+  cafeId: number | string,
+  payload: { text?: string; image_url?: string }
+) {
+  return request(`/api/reviews/cafe/${cafeId}/live-comment`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetLiveComments(cafeId: number | string, params?: { limit?: number; offset?: number }) {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+
+  return request(`/api/reviews/cafe/${cafeId}/live-comments${q.toString() ? `?${q}` : ""}`, {
+    method: "GET",
+    auth: false,
+  });
+}
+
 export async function apiCreateReview(
   cafeId: number | string,
   payload: { rating: number; text?: string }
@@ -385,6 +417,24 @@ export async function apiMyLatestCafe() {
   return latest ?? null;
 }
 
+export async function apiGetMyCafe() {
+  const res = await apiMyCafes();
+  const cafes = res.data ?? [];
+  if (cafes.length === 0) return null;
+  return cafes[0] ?? null;
+}
+
+export async function apiUpdateCafe(
+  cafeId: number | string,
+  payload: Partial<Cafe>
+) {
+  return request(`/api/cafes/${cafeId}`, {
+    method: "PUT",
+    auth: true,
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function apiUploadCafeMedia(
   cafeId: number | string,
   payload: { logo?: File | null; cover?: File | null }
@@ -392,8 +442,70 @@ export async function apiUploadCafeMedia(
   const fd = new FormData();
   if (payload.logo) fd.append("logo", payload.logo);
   if (payload.cover) fd.append("cover", payload.cover);
+
   if (!payload.logo && !payload.cover) return null;
+
   return requestMultipart(`/api/cafes/${cafeId}/media`, fd, { auth: true });
+}
+
+export async function apiUploadGallery(cafeId: number | string, files: File[]) {
+  const fd = new FormData();
+  files.forEach((file) => {
+    fd.append("photos", file);
+  });
+
+  return requestMultipart(`/api/cafes/${cafeId}/gallery`, fd, { auth: true });
+}
+
+export async function apiDeleteGalleryPhoto(
+  cafeId: number | string,
+  photoId: number
+) {
+  return request(`/api/cafes/${cafeId}/gallery/${photoId}`, {
+    method: "DELETE",
+    auth: true,
+  });
+}
+
+export async function apiArchiveGalleryPhoto(
+  cafeId: number | string,
+  photoId: number
+) {
+  return request(`/api/cafes/${cafeId}/gallery/${photoId}/archive`, {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export async function apiUnarchiveGalleryPhoto(
+  cafeId: number | string,
+  photoId: number
+) {
+  return request(`/api/cafes/${cafeId}/gallery/${photoId}/unarchive`, {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export interface GalleryPhoto {
+  id: number;
+  url: string;
+  is_archived: boolean;
+  caption?: string | null;
+  created_at: string;
+}
+
+export interface GalleryPhotosResp {
+  data: GalleryPhoto[];
+  active_count: number;
+  archived_count: number;
+}
+
+export async function apiGetAllGalleryPhotos(cafeId: number | string) {
+  return request<GalleryPhotosResp>(`/api/cafes/${cafeId}/gallery/all`, {
+    method: "GET",
+    auth: true,
+  });
 }
 
 // =================== MENU ===================
@@ -428,6 +540,21 @@ export async function apiDeleteMenuItem(id: number) {
 // =================== FAVORITES ===================
 export async function apiMyFavorites() {
   return request(`/api/users/me/favorites`, { method: "GET", auth: true });
+}
+
+export async function apiMyReviews() {
+  return request(`/api/reviews/users/me/reviews`, { method: "GET", auth: true });
+}
+
+export async function apiUpdateProfile(payload: {
+  name?: string;
+  phone?: string;
+}): Promise<{ message?: string; user?: User }> {
+  return request(`/api/users/me/profile`, {
+    method: "PUT",
+    auth: true,
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function apiAddFavorite(cafeId: number | string) {

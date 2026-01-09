@@ -87,7 +87,7 @@ export default function ReviewsPage() {
         let countsLocal = payload.counts;
 
         if (!avgLocal || !countsLocal) {
-          const cts: Record<number, number> = { 1:0,2:0,3:0,4:0,5:0 };
+          const cts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
           let sum = 0;
           data.forEach((r: Review) => {
             cts[r.rating] = (cts[r.rating] ?? 0) + 1;
@@ -170,7 +170,7 @@ export default function ReviewsPage() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {[5,4,3,2,1].map((star) => (
+            {[5, 4, 3, 2, 1].map((star) => (
               <button
                 key={star}
                 onClick={() => setRatingFilter(ratingFilter === star ? null : star)}

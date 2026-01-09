@@ -1,5 +1,44 @@
 const { Favorite, Cafe } = require('../models');
 
+// Helper functions for URL normalization (similar to cafes.controller.js)
+function baseUrl(req) {
+  // Use the same logic as cafes.controller.js
+  const envBase = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+  if (envBase) return envBase;
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function toPublicUrl(req, p) {
+  if (!p) return null;
+
+  // if already absolute URL, return as-is
+  if (/^https?:\/\//i.test(p)) return p;
+
+  const s = String(p).replace(/\\/g, "/");
+
+  // handle paths with /uploads/
+  const idx = s.lastIndexOf("/uploads/");
+  const clean = idx >= 0 ? s.slice(idx) : s.startsWith("/") ? s : `/${s}`;
+
+  return `${baseUrl(req)}${clean}`;
+}
+
+function normalizeCafe(req, cafeJson) {
+  return {
+    id: cafeJson.id,
+    name: cafeJson.name,
+    address: cafeJson.address,
+    lat: cafeJson.lat,
+    lng: cafeJson.lng,
+    phone: cafeJson.phone,
+    instagram: cafeJson.instagram,
+    opening_hours: cafeJson.opening_hours,
+    description: cafeJson.description,
+    cover_url: cafeJson.cover_url ? toPublicUrl(req, cafeJson.cover_url) : null,
+    logo_url: cafeJson.logo_url ? toPublicUrl(req, cafeJson.logo_url) : null,
+  };
+}
+
 exports.listMine = async (req, res, next) => {
   try {
     const userId = req.user?.id;
@@ -13,7 +52,7 @@ exports.listMine = async (req, res, next) => {
 
     res.json(rows.map((r) => ({
       id: r.id,
-      cafe: r.cafe,
+      cafe: r.cafe ? normalizeCafe(req, r.cafe.toJSON()) : null,
     })));
   } catch (e) {
     next(e);

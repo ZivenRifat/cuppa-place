@@ -6,9 +6,8 @@ export const StarRating = ({ rating }: { rating: number }) => (
       <Star
         key={i}
         size={16}
-        className={`${
-          i <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
-        }`}
+        className={`${i <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+          }`}
       />
     ))}
   </div>

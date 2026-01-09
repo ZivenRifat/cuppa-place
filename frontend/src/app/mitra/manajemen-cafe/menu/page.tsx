@@ -9,9 +9,11 @@ import {
   apiCreateMenuItem,
   apiUpdateMenuItem,
   apiDeleteMenuItem,
+  apiUploadTempImage,
 } from "@/lib/api";
 import type { Cafe, MenuItem } from "@/types/domain";
 import { routeForRole } from "@/lib/roles";
+import { Upload, X, Image as ImageIcon } from "lucide-react";
 
 /** ====== Utilities ====== */
 const toIDR = (n: number) =>
@@ -302,11 +304,10 @@ export default function KelolaMenuPage() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl px-4 py-2 shadow-lg border text-sm ${
-            toast.kind === "success"
-              ? "bg-emerald-50/95 border-emerald-200 text-emerald-900"
-              : "bg-red-50/95 border-red-200 text-red-900"
-          }`}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl px-4 py-2 shadow-lg border text-sm ${toast.kind === "success"
+            ? "bg-emerald-50/95 border-emerald-200 text-emerald-900"
+            : "bg-red-50/95 border-red-200 text-red-900"
+            }`}
         >
           {toast.msg}
         </div>
@@ -332,8 +333,41 @@ function MenuFormModal({
   const [price, setPrice] = useState<number>(initial?.price ?? 0);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [photoUrl, setPhotoUrl] = useState(initial?.photo_url ?? "");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initial?.photo_url ?? null);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validasi ukuran file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErr("Ukuran file maksimal 5MB");
+      return;
+    }
+
+    // Validasi tipe file
+    if (!file.type.startsWith("image/")) {
+      setErr("File harus berupa gambar");
+      return;
+    }
+
+    setSelectedFile(file);
+    setErr(null);
+
+    // Preview lokal
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+  };
+
+  const removeImage = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setPhotoUrl("");
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -348,6 +382,24 @@ function MenuFormModal({
       return;
     }
 
+    let finalPhotoUrl = photoUrl;
+
+    // Upload gambar jika ada file yang dipilih
+    if (selectedFile) {
+      setUploading(true);
+      try {
+        const uploadResult = await apiUploadTempImage(selectedFile);
+        finalPhotoUrl = uploadResult.url;
+        setPhotoUrl(finalPhotoUrl);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Gagal mengupload gambar";
+        setErr(msg);
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     setSaving(true);
     try {
       if (initial) {
@@ -356,7 +408,7 @@ function MenuFormModal({
           category: category.trim() || undefined,
           price: Math.round(price),
           description: description.trim() || undefined,
-          photo_url: photoUrl.trim() || undefined,
+          photo_url: finalPhotoUrl || undefined,
         });
       } else {
         await apiCreateMenuItem({
@@ -365,7 +417,7 @@ function MenuFormModal({
           category: category.trim() || undefined,
           price: Math.round(price),
           description: description.trim() || undefined,
-          photo_url: photoUrl.trim() || undefined,
+          photo_url: finalPhotoUrl || undefined,
         });
       }
       onSaved();
@@ -437,16 +489,42 @@ function MenuFormModal({
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <label className="text-sm font-medium">Foto (URL)</label>
-            <input
-              className="w-full border border-gray-300 rounded-md px-3 py-2"
-              value={photoUrl ?? ""}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              placeholder="https://…"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              *Sementara pakai URL. Jika nanti pakai upload file, tinggal ganti input ini ke uploader.
-            </p>
+            <label className="text-sm font-medium">Foto Menu</label>
+
+            {!previewUrl ? (
+              // Area upload kosong
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#2b210a] hover:bg-gray-50 transition cursor-pointer relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <Upload className="mx-auto h-10 w-10 text-gray-400 mb-2" />
+                <p className="text-sm text-gray-600">
+                  Klik untuk upload foto menu
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Format: JPG, PNG, GIF (Max 5MB)
+                </p>
+              </div>
+            ) : (
+              // Preview gambar
+              <div className="relative inline-block">
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="w-40 h-40 object-cover rounded-lg border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
           </div>
 
           {err && (
@@ -460,15 +538,30 @@ function MenuFormModal({
               type="button"
               onClick={onClose}
               className="px-4 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50"
+              disabled={uploading || saving}
             >
               Batal
             </button>
             <button
               type="submit"
-              disabled={saving}
-              className="px-4 py-2 rounded-md bg-[#2b210a] text-white hover:bg-[#423614]"
+              disabled={uploading || saving}
+              className="px-4 py-2 rounded-md bg-[#2b210a] text-white hover:bg-[#423614] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {saving ? "Menyimpan…" : initial ? "Simpan Perubahan" : "Tambah"}
+              {uploading ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Mengupload...
+                </>
+              ) : saving ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Menyimpan...
+                </>
+              ) : initial ? (
+                "Simpan Perubahan"
+              ) : (
+                "Tambah"
+              )}
             </button>
           </div>
         </form>
@@ -514,3 +607,4 @@ function ConfirmDialog({
     </div>
   );
 }
+

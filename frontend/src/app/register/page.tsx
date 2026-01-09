@@ -39,6 +39,7 @@ export default function RegisterPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -69,6 +70,7 @@ export default function RegisterPage() {
         name: name.trim(),
         email: email.trim(),
         password,
+        phone: phone.trim() || undefined,
       })) as unknown as RegisterRespLike;
 
       // ✅ ambil token dengan aman (token/access_token/data.token)
@@ -126,6 +128,19 @@ export default function RegisterPage() {
                 className="w-full p-3 rounded-md bg-[#4d4020] text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 placeholder="Masukkan email"
                 required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm font-semibold">
+                No. Telepon
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full p-3 rounded-md bg-[#4d4020] text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="Masukkan nomor telepon (opsional)"
               />
             </div>
 

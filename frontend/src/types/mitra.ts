@@ -1,4 +1,4 @@
-// frontend/src/types/mitra.ts
+// src/types/mitra.ts
 
 export type TimeRange = { start: string; end: string };
 
@@ -18,11 +18,7 @@ export type OpeningHours = {
   sun: DayHours;
 };
 
-const DEFAULT_DAY: DayHours = {
-  open: true,
-  allDay: false,
-  ranges: [{ start: "08:00", end: "22:00" }],
-};
+const DEFAULT_DAY: DayHours = { open: true, allDay: false, ranges: [{ start: "08:00", end: "22:00" }] };
 
 export const DEFAULT_OPENING_HOURS: OpeningHours = {
   mon: { ...DEFAULT_DAY },
@@ -53,11 +49,9 @@ export type MitraFormData = {
 
   opening_hours: OpeningHours;
 
-  logoFile: File | null;
-  coverFile: File | null;
-  galleryFiles: File[];
-
-  logoPreviewUrl: string | null;
-  coverPreviewUrl: string | null;
-  galleryPreviewUrls: string[];
+  logoFile?: File | null;
+  coverFile?: File | null;
+  galleryFiles?: File[];
+  logoPreviewUrl?: string | null;
+  galleryPreviewUrls?: string[];
 };

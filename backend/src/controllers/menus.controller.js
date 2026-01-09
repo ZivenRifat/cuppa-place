@@ -19,7 +19,7 @@ exports.update = async (req, res, next) => {
     const cafe = await Cafe.findByPk(row.cafe_id);
     if (!cafe) return res.status(404).json({ message: 'Cafe not found' });
     if (req.user.role !== 'admin' && cafe.owner_id !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
-    const allowed = ['name','category','price','description','photo_url','is_available'];
+    const allowed = ['name', 'category', 'price', 'description', 'photo_url', 'is_available'];
     for (const k of allowed) if (req.body[k] !== undefined) row[k] = req.body[k];
     await row.save();
     res.json(row);

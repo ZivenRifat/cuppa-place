@@ -2,7 +2,8 @@
 const router = require("express").Router();
 
 const { authRequired, roleRequired } = require("../middlewares/auth");
-const { uploadCafeMedia } = require("../middlewares/uploadCafeMedia");
+const uploadCafeMedia = require("../middlewares/uploadCafeMedia");
+const uploadGallery = require("../middlewares/uploadGallery");
 
 const ctrl = require("../controllers/cafes.controller");
 const reviewCtrl = require("../controllers/reviews.controller");
@@ -16,7 +17,6 @@ router.post("/:id/reviews", authRequired, reviewCtrl.create);
 router.get("/:id/reports", authRequired, ctrl.reports);
 router.put("/:id", authRequired, ctrl.update);
 
-// update logo/cover (after register)
 router.post(
   "/:id/media",
   authRequired,
@@ -24,26 +24,47 @@ router.post(
   uploadCafeMedia.fields([
     { name: "cover", maxCount: 1 },
     { name: "logo", maxCount: 1 },
-    { name: "gallery", maxCount: 8 },
   ]),
   ctrl.updateMedia
 );
 
-// upload gallery (after register) - multiple files
+// Gallery routes
 router.post(
-  "/:id/galleries",
+  "/:id/gallery",
   authRequired,
   roleRequired("mitra", "admin"),
-  uploadCafeMedia.array("gallery", 8),
-  ctrl.addGallery
+  uploadGallery.fields([{ name: "photos", maxCount: 8 }]),
+  ctrl.uploadGallery
 );
 
-// delete one gallery image
 router.delete(
-  "/:id/galleries/:galleryId",
+  "/:id/gallery/:photoId",
   authRequired,
   roleRequired("mitra", "admin"),
-  ctrl.deleteGallery
+  ctrl.deleteGalleryPhoto
+);
+
+// Archive/Unarchive routes
+router.post(
+  "/:id/gallery/:photoId/archive",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  ctrl.archiveGalleryPhoto
+);
+
+router.post(
+  "/:id/gallery/:photoId/unarchive",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  ctrl.unarchiveGalleryPhoto
+);
+
+// Get all photos including archived
+router.get(
+  "/:id/gallery/all",
+  authRequired,
+  roleRequired("mitra", "admin"),
+  ctrl.getAllGalleryPhotos
 );
 
 module.exports = router;

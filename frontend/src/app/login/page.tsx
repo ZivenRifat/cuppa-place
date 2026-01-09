@@ -5,6 +5,7 @@ import Image from "next/image";
 import Slideshow from "@/components/SlideShow";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 import { canAccess, routeForRole } from "@/lib/roles";
 import type { Role } from "@/types/domain";
@@ -39,6 +40,8 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [nextPath, setNextPath] = useState<string>("/");
 
   useEffect(() => {
@@ -48,6 +51,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
 
     try {
       if (!API_BASE) {
@@ -66,8 +70,12 @@ export default function LoginPage() {
 
       setAuthToken(token);
 
-      // opsional: kalau ada bagian app yang masih baca cookie
-      document.cookie = `cuppa_token=${token}; path=/; max-age=86400; SameSite=Lax; Secure`;
+      // Set cookie - remove Secure flag for localhost development
+      const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+      const cookieOptions = isLocalhost
+        ? 'path=/; max-age=86400; SameSite=Lax'
+        : 'path=/; max-age=86400; SameSite=Lax; Secure';
+      document.cookie = `cuppa_token=${token}; ${cookieOptions}`;
 
       window.dispatchEvent(new Event("auth-update"));
 
@@ -81,7 +89,7 @@ export default function LoginPage() {
 
       router.replace(allowedPath);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Login gagal");
+      setError(err instanceof Error ? err.message : "Login gagal. Coba lagi.");
     }
   };
 
@@ -111,14 +119,23 @@ export default function LoginPage() {
               <label className="block mb-2 text-sm font-semibold">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 rounded-md bg-[#4d4020] text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                placeholder="Masukkan password"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full p-3 pr-10 rounded-md bg-[#4d4020] text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="Masukkan password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-between text-sm font-medium">
@@ -126,6 +143,12 @@ export default function LoginPage() {
                 Lupa Password
               </Link>
             </div>
+
+            {error && (
+              <div className="text-sm bg-red-50 border border-red-200 text-red-900 rounded-md px-3 py-2">
+                {error}
+              </div>
+            )}
 
             <button
               type="submit"

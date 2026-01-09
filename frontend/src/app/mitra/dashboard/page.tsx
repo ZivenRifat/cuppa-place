@@ -12,11 +12,12 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Star } from "lucide-react";
-import Navbar from "@/components/Navbar";
+
 import { useAuth } from "@/lib/auth";
 import { apiMitraDashboard } from "@/lib/api";
 import { routeForRole } from "@/lib/roles";
 import type { MitraDashboardResp } from "@/types/domain";
+import NavbarMitra from "@/components/mitra/NavbarMitra";
 
 export default function MitraDashboard() {
   const { user, loading } = useAuth();
@@ -87,7 +88,7 @@ export default function MitraDashboard() {
   return (
     <>
       <div className="relative z-50">
-        <Navbar />
+
       </div>
 
       <section className="p-8 grid grid-cols-3 gap-6 text-[#271F01] pt-24">

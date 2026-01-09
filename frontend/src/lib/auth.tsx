@@ -3,7 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User } from "@/types/domain";
-import { apiLogin, apiMe} from "./api";
+import { apiLogin, apiMe } from "./api";
 
 type AuthContextValue = {
   user: User | null;

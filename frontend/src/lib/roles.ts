@@ -1,7 +1,7 @@
 // src/lib/roles.ts
 import type { Role } from "@/types/domain";
 export const DEFAULT_ROUTE: Record<Role, string> = {
-  user:  "/pengguna/home",
+  user: "/pengguna/home",
   mitra: "/mitra/dashboard",
   admin: "/admin",
 };
@@ -12,7 +12,7 @@ export function routeForRole(role: Role | undefined): string {
 }
 
 const ALLOW_PREFIX: Record<Role, string[]> = {
-  user:  ["/", "/pengguna"],
+  user: ["/", "/pengguna"],
   mitra: ["/", "/pengguna", "/mitra"],
   admin: ["/", "/pengguna", "/mitra", "/admin"],
 };

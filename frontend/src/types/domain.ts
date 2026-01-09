@@ -21,15 +21,6 @@ export interface MeResp {
   user: User;
 }
 
-/** ====== Cafe Galleries ====== */
-export interface CafeGallery {
-  id: number;
-  cafe_id: number;
-  image_url: string; // backend harus kirim absolute url atau relative /uploads/...
-  created_at?: string;
-  updated_at?: string;
-}
-
 /** ====== Cafe / Menu / Review ====== */
 export interface Cafe {
   id: number;
@@ -45,25 +36,19 @@ export interface Cafe {
 
   phone?: string | null;
   instagram?: string | null;
+  opening_hours?: Record<string, any> | null;
 
-  /**
-   * opening_hours kamu sekarang disimpan JSON.
-   * Bisa bentuk object kompleks (day->ranges), jadi pakai unknown atau record fleksibel.
-   */
-  opening_hours?: Record<string, unknown> | null;
-
-  /** media utama */
+  /** media */
   cover_url?: string | null;
   logo_url?: string | null;
   photo_url?: string | null;
-
-  /** galleries (opsional, tergantung endpoint include atau belum) */
-  galleries?: CafeGallery[]; // ✅ NEW
+  gallery_urls?: string[] | null;
 
   owner?: Pick<User, "id" | "name">;
 
   distance_m?: number;
 }
+
 
 export interface MenuItem {
   id: number;
@@ -77,12 +62,14 @@ export interface MenuItem {
 }
 
 export interface Review {
+  author: any;
   id: number;
   cafe_id: number;
   user_id?: number | null;
   rating: number;
   text?: string | null;
   comment?: string | null;
+  image_url?: string | null;
   photos?: unknown;
   created_at: string;
   updated_at: string;

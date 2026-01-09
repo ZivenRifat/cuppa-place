@@ -2,12 +2,12 @@
 const nodemailer = require('nodemailer');
 
 const FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-const BRAND_NAME   = process.env.EMAIL_BRAND_NAME   || 'CuppaPlace';
-const BRAND_COLOR  = process.env.EMAIL_BRAND_COLOR  || '#2b210a';  // primary (sesuaikan brand-mu)
+const BRAND_NAME = process.env.EMAIL_BRAND_NAME || 'CuppaPlace';
+const BRAND_COLOR = process.env.EMAIL_BRAND_COLOR || '#2b210a';  // primary (sesuaikan brand-mu)
 const BRAND_ACCENT = process.env.EMAIL_BRAND_ACCENT || '#f5efe2';  // aksen lembut
-const LOGO_URL     = process.env.EMAIL_LOGO_URL     || '';         // https://... (opsional)
-const APP_URL      = process.env.APP_URL            || '';         // https://... (opsional)
-const SUPPORT_EMAIL= process.env.SUPPORT_EMAIL      || FROM;
+const LOGO_URL = process.env.EMAIL_LOGO_URL || '';         // https://... (opsional)
+const APP_URL = process.env.APP_URL || '';         // https://... (opsional)
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || FROM;
 
 function buildTransport() {
   const user = process.env.EMAIL_USER;
@@ -15,7 +15,7 @@ function buildTransport() {
 
   if (!user || !pass) {
     console.warn('[email] EMAIL_USER / EMAIL_PASS not set — email disabled (mock mode)');
-    return null; 
+    return null;
   }
 
   const host = process.env.EMAIL_HOST;
@@ -145,7 +145,7 @@ function baseTemplate({ preheader = '', title = '', bodyHtml = '' }) {
           <tr>
             <td align="center" style="padding: 14px 8px 0;">
               <div class="muted" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#98a2b3;">
-                © ${new Date().getFullYear()} ${BRAND_NAME}${APP_URL ? ` • <a href="${APP_URL}" style="color:#98a2b3;text-decoration:none;">${APP_URL.replace(/^https?:\/\//,'')}</a>` : ''}${SUPPORT_EMAIL ? ` • <a href="mailto:${SUPPORT_EMAIL}" style="color:#98a2b3;text-decoration:none;">Bantuan</a>` : ''}
+                © ${new Date().getFullYear()} ${BRAND_NAME}${APP_URL ? ` • <a href="${APP_URL}" style="color:#98a2b3;text-decoration:none;">${APP_URL.replace(/^https?:\/\//, '')}</a>` : ''}${SUPPORT_EMAIL ? ` • <a href="mailto:${SUPPORT_EMAIL}" style="color:#98a2b3;text-decoration:none;">Bantuan</a>` : ''}
               </div>
             </td>
           </tr>
@@ -171,7 +171,7 @@ function otpTemplate(code) {
     <!-- Kode -->
     <div class="code"
          style="margin:12px 0 8px;padding:16px 18px;border:1px solid #e6e8ee;border-radius:12px;background:#fafbff;letter-spacing:6px;font-size:28px;line-height:36px;font-weight:800;text-align:center;color:#111827;">
-      ${String(code).replace(/[^0-9]/g,'').padEnd(6,'•')}
+      ${String(code).replace(/[^0-9]/g, '').padEnd(6, '•')}
     </div>
 
     <div class="muted" style="margin:4px 0 14px;font-size:13px;line-height:20px;color:#667085;">
